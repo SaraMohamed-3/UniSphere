@@ -1,0 +1,267 @@
+import React, { useState } from "react";
+import api from "../services/api";
+
+import {
+  GraduationCap,
+  Mail,
+  Lock,
+  User,
+  ShieldCheck,
+  Briefcase,
+} from "lucide-react";
+
+export default function LoginForm() {
+  const [userType, setUserType] = useState("Student");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const roles = [
+    { name: "Student", icon: <User size={18} /> },
+    { name: "Professor", icon: <Briefcase size={18} /> },
+    { name: "Admin", icon: <ShieldCheck size={18} /> },
+  ];
+
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await api.post("/auth/login", {
+        email: email.trim(),
+        password: password.trim(),
+        role: userType.toLowerCase(), // convert to lowercase to match backend
+      });
+
+      localStorage.setItem("token", response.data.token);
+
+      alert("Login Successful 🎉");
+      console.log("Logged in as:", response.data.role);
+    } catch (err) {
+      console.log("FULL ERROR:", err);
+      console.log("RESPONSE:", err.response);
+      alert(err.response?.data?.message || err.message);
+    }
+
+    setLoading(false);
+  };
+
+  // Internal CSS Objects to replace Tailwind
+  const containerStyle = {
+    width: "100%",
+    maxWidth: "440px",
+    backgroundColor: "#ffffff",
+    borderRadius: "40px",
+    padding: "48px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.1)",
+    border: "1px solid #f1f5f9",
+    fontFamily: "sans-serif",
+  };
+
+  const iconHeaderStyle = {
+    backgroundColor: "#2563eb",
+    padding: "20px",
+    borderRadius: "24px",
+    width: "fit-content",
+    margin: "0 auto 32px auto",
+    color: "white",
+    boxShadow: "0 10px 15px -3px rgba(37, 99, 235, 0.4)",
+  };
+
+  const toggleContainer = {
+    display: "flex",
+    backgroundColor: "#f1f5f9",
+    padding: "6px",
+    borderRadius: "16px",
+    marginBottom: "32px",
+    gap: "4px",
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "14px 14px 14px 48px",
+    backgroundColor: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "16px",
+    outline: "none",
+    fontSize: "16px",
+    transition: "all 0.2s",
+  };
+
+  const buttonStyle = {
+    width: "100%",
+    backgroundColor: "#2563eb",
+    color: "white",
+    padding: "16px",
+    borderRadius: "16px",
+    border: "none",
+    fontWeight: "800",
+    fontSize: "16px",
+    cursor: "pointer",
+    marginTop: "16px",
+    boxShadow: "0 10px 15px -3px rgba(37, 99, 235, 0.3)",
+  };
+
+  return (
+    <div style={containerStyle}>
+      {/* Logo Icon */}
+      <div style={iconHeaderStyle}>
+        <GraduationCap size={48} />
+      </div>
+
+      <div style={{ textAlign: "center", marginBottom: "40px" }}>
+        <p
+          style={{
+            color: "#94a3b8",
+            fontSize: "12px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "1px",
+            marginBottom: "4px",
+          }}
+        >
+          Welcome to
+        </p>
+        <h3
+          style={{
+            fontSize: "28px",
+            fontWeight: "900",
+            color: "#1e293b",
+            margin: 0,
+          }}
+        >
+          {userType} Portal
+        </h3>
+        <div
+          style={{
+            width: "40px",
+            height: "5px",
+            backgroundColor: "#fbbf24",
+            borderRadius: "10px",
+            margin: "12px auto 0",
+          }}
+        ></div>
+      </div>
+
+      {/* Role Toggle */}
+      <div style={toggleContainer}>
+        {roles.map((role) => (
+          <button
+            key={role.name}
+            type="button"
+            onClick={() => setUserType(role.name)}
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "10px",
+              border: "none",
+              borderRadius: "12px",
+              fontWeight: "700",
+              fontSize: "14px",
+              cursor: "pointer",
+              transition: "0.3s",
+              backgroundColor: userType === role.name ? "white" : "transparent",
+              color: userType === role.name ? "#2563eb" : "#94a3b8",
+              boxShadow:
+                userType === role.name
+                  ? "0 4px 6px -1px rgba(0,0,0,0.1)"
+                  : "none",
+            }}
+          >
+            {role.icon} {role.name}
+          </button>
+        ))}
+      </div>
+
+      <form
+        onSubmit={handleSignIn}
+        style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+      >
+        {/* Email Input */}
+        <div style={{ position: "relative" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: "700",
+              color: "#334155",
+              marginBottom: "8px",
+            }}
+          >
+            Email Address
+          </label>
+          <Mail
+            size={20}
+            style={{
+              position: "absolute",
+              left: "16px",
+              top: "42px",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="email"
+            placeholder={`${userType.toLowerCase()}@alexu.edu.eg`}
+            onChange={(e) => setEmail(e.target.value)}
+            style={inputStyle}
+            required
+          />
+        </div>
+
+        {/* Password Input */}
+        <div style={{ position: "relative" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: "700",
+              color: "#334155",
+              marginBottom: "8px",
+            }}
+          >
+            Password
+          </label>
+          <Lock
+            size={20}
+            style={{
+              position: "absolute",
+              left: "16px",
+              top: "42px",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="password"
+            placeholder="••••••••"
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+            required
+          />
+        </div>
+
+        <div style={{ textAlign: "right" }}>
+          <button
+            type="button"
+            style={{
+              background: "none",
+              border: "none",
+              color: "#2563eb",
+              fontWeight: "700",
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            Forgot Password?
+          </button>
+        </div>
+
+        <button type="submit" style={buttonStyle} disabled={loading}>
+          {loading ? "Verifying..." : `Sign In as ${userType}`}
+        </button>
+      </form>
+    </div>
+  );
+}
