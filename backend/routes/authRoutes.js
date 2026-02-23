@@ -5,6 +5,72 @@ const db = require("../data/db");
 
 const router = express.Router();
 
+const crypto = require("crypto");
+
+// ================= FORGOT PASSWORD =================
+router.post("/forgot-password", async (req, res) => {
+  console.log("FORGOT PASSWORD ROUTE HIT"); // debug line
+
+  try {
+    const { email } = req.body;
+
+    const result = await db.query(
+      `SELECT user_id, email FROM users WHERE email = $1`,
+      [email],
+    );
+
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expire = Date.now() + 3600000;
+
+    await db.query(
+      `UPDATE users SET reset_token = $1, reset_token_expire = $2 WHERE user_id = $3`,
+      [token, expire, user.user_id],
+    );
+
+    res.json({
+      message: "Reset link generated (email optional for now)",
+      token,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+// ================= RESET PASSWORD =================
+router.post("/reset-password/:token", async (req, res) => {
+  try {
+    const { password } = req.body;
+    const { token } = req.params;
+
+    const result = await db.query(
+      `SELECT user_id FROM users
+       WHERE reset_token = $1 AND reset_token_expire > $2`,
+      [token, Date.now()],
+    );
+
+    const user = result.rows[0];
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           reset_token = NULL,
+           reset_token_expire = NULL
+       WHERE user_id = $2`,
+      [hash, user.user_id],
+    );
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password, role } = req.body;

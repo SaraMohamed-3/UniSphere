@@ -62,6 +62,20 @@ export default function LoginForm() {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      alert("Enter your email first");
+      return;
+    }
+
+    try {
+      const res = await api.post("/auth/forgot-password", { email });
+      alert(res.data.message);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to send reset link");
+    }
+  };
+
   // Internal CSS Objects to replace Tailwind
   const containerStyle = {
     width: "100%",
@@ -95,13 +109,13 @@ export default function LoginForm() {
 
   const inputStyle = {
     width: "100%",
-    padding: "14px 14px 14px 48px",
+    padding: "14px 14px 14px 42px", // reduced from 48 → better alignment
     backgroundColor: "#f8fafc",
     border: "1px solid #e2e8f0",
     borderRadius: "16px",
     outline: "none",
     fontSize: "16px",
-    transition: "all 0.2s",
+    boxSizing: "border-box", // important for alignment
   };
 
   const buttonStyle = {
@@ -262,6 +276,7 @@ export default function LoginForm() {
         <div style={{ textAlign: "right" }}>
           <button
             type="button"
+            onClick={handleForgotPassword}
             style={{
               background: "none",
               border: "none",
