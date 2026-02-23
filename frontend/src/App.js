@@ -7,6 +7,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./pages/AdminLayout";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminPage from "./pages/AdminPage";
+import AdminCourseManagement from "./pages/AdminCourseManagement";
+import AdminRequests from "./pages/AdminRequests";
 
 import StudentPage from "./pages/StudentPage";
 import ProfessorPage from "./pages/ProfessorPage";
@@ -30,11 +32,12 @@ function App() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="users" element={<AdminPage />} />
 
-          {/* placeholders (optional for now) */}
-          <Route path="courses" element={<div>Courses (later)</div>} />
+          <Route path="courses" element={<AdminCourseManagement />} />
           <Route path="messages" element={<div>Messages (later)</div>} />
-          <Route path="requests" element={<div>Requests (later)</div>} />
+          <Route path="requests" element={<AdminRequests />} />
         </Route>
+
+
 
         <Route
           path="/student"
