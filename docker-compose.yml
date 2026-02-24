@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: unisphere_postgres
+    container_name: sis_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-sis}
