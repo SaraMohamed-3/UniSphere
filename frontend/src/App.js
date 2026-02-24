@@ -18,6 +18,11 @@ import ProfessorLayout from "./pages/ProfessorLayout";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import AdminAnnouncementsPage from "./pages/AdminAnnouncementsPage";
 
+import ProfessorClassesPage from "./pages/ProfessorClassesPage";
+import ProfessorGradesPage from "./pages/ProfessorGradesPage";
+import ProfessorAttendancePage from "./pages/ProfessorAttendancePage";
+import ProfessorAnnouncementsPage from "./pages/ProfessorAnnouncementsPage";
+
 function App() {
   return (
     <Router>
@@ -93,12 +98,10 @@ function App() {
         >
           <Route index element={<ProfessorPage />} />
 
-          {/*  Professor View All announcements */}
-          <Route path="announcements" element={<AnnouncementsPage />} />
-
-          <Route path="classes" element={<div>My Classes (later)</div>} />
-          <Route path="grades" element={<div>Enter Grades (later)</div>} />
-          <Route path="attendance" element={<div>Attendance (later)</div>} />
+          <Route path="classes" element={<ProfessorClassesPage />} />
+          <Route path="grades" element={<ProfessorGradesPage />} />
+          <Route path="attendance" element={<ProfessorAttendancePage />} />
+          <Route path="announcements" element={<ProfessorAnnouncementsPage />} />
         </Route>
       </Routes>
     </Router>

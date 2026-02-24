@@ -8,7 +8,7 @@ const professorRoutes = require("./routes/professorRoutes");
 const announcementsRoutes = require("./routes/announcementsRoutes");
 
 const app = express();
-const PORT = 5000;
+const PORT = 5050;
 
 app.use(cors());
 app.use(express.json());
