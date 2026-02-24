@@ -28,4 +28,13 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-module.exports = { verifyJWT, adminOnly };
+const professorOnly = (req, res, next) => {
+  if (req.user.role !== "professor") {
+    return res.status(403).json({ message: "Access denied. Professors only." });
+  }
+  next();
+};
+ 
+module.exports = { verifyJWT, adminOnly, professorOnly };
+
+

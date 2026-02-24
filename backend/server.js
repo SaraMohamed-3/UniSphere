@@ -3,9 +3,10 @@ const cors = require("cors");
 // server.js
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const professorRoutes = require("./routes/professorRoutes");
 
 const app = express();
-const PORT = 5000;
+const PORT = 5050;
 
 // 1. Middleware
 // CORS allows your React app (usually port 3000) to talk to this server
@@ -18,6 +19,7 @@ app.use(express.json());
 // This prefixes every route inside authRoutes with "/api/auth"
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/professor", professorRoutes);
 
 // 3. Fallback Route (For Debugging)
 // If you hit a URL that doesn't exist, this provides a clearer message

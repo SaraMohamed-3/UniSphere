@@ -1,13 +1,49 @@
-body {
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  }
 }
 
-code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+@layer components {
+  .stat-card {
+    @apply bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .quick-action-btn {
+    @apply text-white rounded-xl p-4 flex items-center justify-center space-x-3 hover:opacity-90 transition-all duration-200 font-medium;
+  }
+  
+  .section-title {
+    @apply text-lg font-semibold text-gray-800 mb-4;
+  }
+  
+  .schedule-item {
+    @apply flex items-start p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors;
+  }
+  
+  .time-badge {
+    @apply flex-shrink-0 w-16 h-16 bg-blue-100 rounded-lg flex flex-col items-center justify-center;
+  }
+  
+  .announcement-item {
+    @apply flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0;
+  }
+  
+  .new-badge {
+    @apply px-2 py-1 bg-red-100 text-red-600 text-xs rounded-full;
+  }
 }
