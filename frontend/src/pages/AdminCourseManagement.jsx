@@ -9,7 +9,7 @@ export default function AdminCourseManagement() {
 
   // Classes
   const [classes, setClasses] = useState([]);
-  const [classForm, setClassForm] = useState({ course_id: "", semester: "", year: "" });
+  const [classForm, setClassForm] = useState({ course_id: "", semester: "", year: "", professor_id: "" });
 
   // Professor Assignments
   const [professors, setProfessors] = useState([]);
@@ -76,7 +76,7 @@ export default function AdminCourseManagement() {
     api.post("/admin/classes", classForm, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
       .then(() => { 
         alert("Class created"); 
-        setClassForm({ course_id: "", semester: "", year: "" }); 
+        setClassForm({ course_id: "", semester: "", year: "", professor_id: "" }); 
         fetchClasses(); 
       })
       .catch(err => alert(err.response?.data?.message || err.message));
@@ -175,6 +175,10 @@ const handleExamSubmit = (e) => {
           <select value={classForm.course_id} onChange={e => setClassForm({...classForm, course_id:e.target.value})} style={inputStyle} required>
             <option value="">Select Course</option>
             {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.name} ({c.code})</option>)}
+          </select>
+          <select value={classForm.professor_id} onChange={e => setClassForm({...classForm, professor_id:e.target.value})} style={inputStyle} required>
+            <option value="">Select Professor</option>
+            {professors.map(p => <option key={p.user_id} value={p.user_id}>{p.email}</option>)}
           </select>
           <input placeholder="Semester" value={classForm.semester} onChange={e => setClassForm({...classForm, semester:e.target.value})} style={inputStyle} required/>
           <input type="number" placeholder="Year" value={classForm.year} onChange={e => setClassForm({...classForm, year:e.target.value})} style={inputStyle} required/>

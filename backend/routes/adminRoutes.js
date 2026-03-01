@@ -15,6 +15,20 @@ async function tableExists(tableName) {
   return !!r.rows[0]?.t;
 }
 
+async function resolveProfessorId(maybeId) {
+  const numericId = Number(maybeId);
+  if (!Number.isInteger(numericId) || numericId <= 0) return null;
+
+  const r = await db.query(
+    `SELECT professor_id
+     FROM professors
+     WHERE professor_id = $1 OR user_id = $1
+     LIMIT 1`,
+    [numericId],
+  );
+  return r.rows[0]?.professor_id ?? null;
+}
+
 /* =========================================================
    📊 ADMIN DASHBOARD
    GET /api/admin/dashboard
@@ -374,11 +388,12 @@ router.get("/classes", verifyJWT, adminOnly, async (req, res) => {
       SELECT c.*,
              cr.name AS course_name,
              cr.code AS course_code,
-             p.user_id AS professor_id,
+             p.professor_id AS professor_id,
+             p.user_id AS professor_user_id,
              u.email AS professor_email
       FROM classes c
       LEFT JOIN courses cr ON c.course_id = cr.course_id
-      LEFT JOIN professors p ON c.professor_id = p.user_id
+      LEFT JOIN professors p ON c.professor_id = p.professor_id
       LEFT JOIN users u ON p.user_id = u.user_id
       ORDER BY c.class_id ASC
     `);
@@ -390,9 +405,20 @@ router.get("/classes", verifyJWT, adminOnly, async (req, res) => {
 router.post("/classes", verifyJWT, adminOnly, async (req, res) => {
   try {
     const { course_id, semester, year, professor_id } = req.body;
+    if (!course_id || !semester || !year || !professor_id) {
+      return res.status(400).json({
+        message: "course_id, semester, year, and professor_id are required",
+      });
+    }
+
+    const resolvedProfessorId = await resolveProfessorId(professor_id);
+    if (!resolvedProfessorId) {
+      return res.status(400).json({ message: "Invalid professor_id" });
+    }
+
     const result = await db.query(
       "INSERT INTO classes (course_id, semester, year, professor_id) VALUES ($1,$2,$3,$4) RETURNING *",
-      [course_id, semester, year, professor_id || null]
+      [course_id, semester, year, resolvedProfessorId]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ message: err.message }); }
@@ -403,10 +429,18 @@ router.put("/classes/:id/professor", verifyJWT, adminOnly, async (req, res) => {
   try {
     const class_id = req.params.id;
     const { professor_id } = req.body;
+    const resolvedProfessorId = await resolveProfessorId(professor_id);
+    if (!resolvedProfessorId) {
+      return res.status(400).json({ message: "Invalid professor_id" });
+    }
+
     const result = await db.query(
       "UPDATE classes SET professor_id=$1 WHERE class_id=$2 RETURNING *",
-      [professor_id, class_id]
+      [resolvedProfessorId, class_id]
     );
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Class not found" });
+    }
     res.json(result.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ message: err.message }); }
 });

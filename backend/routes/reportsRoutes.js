@@ -35,14 +35,16 @@ async function assertClassAccess(req, res, next) {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    const classId = req.query.classId;
-    if (!classId) {
-      return res.status(400).json({ message: "classId is required" });
+    const classId = parseInt(req.query.classId, 10);
+    if (!req.query.classId || isNaN(classId)) {
+      return res.status(400).json({ message: "classId is required and must be a valid number" });
     }
 
-    // In YOUR DB currently classes.professor_id stores the professor's user_id
+    // classes.professor_id references professors.professor_id, so join to match user_id
     const classRes = await db.query(
-      "SELECT class_id FROM classes WHERE class_id = $1 AND professor_id = $2",
+      `SELECT c.class_id FROM classes c
+       JOIN professors p ON c.professor_id = p.professor_id
+       WHERE c.class_id = $1 AND p.user_id = $2`,
       [classId, userId],
     );
 
@@ -78,7 +80,7 @@ function sendPDF(res, filename, title, summary, rows, columns) {
     console.error("PDF error:", err);
     try {
       res.end();
-    } catch {}
+    } catch { }
   });
 
   // ---------------------
@@ -187,7 +189,7 @@ function sendPDF(res, filename, title, summary, rows, columns) {
 async function getClassCourseInfo(classId) {
   const r = await db.query(
     `
-    SELECT co.name, co.code, c.semester, c.year
+    SELECT co.name, co.code, c.semester
     FROM classes c
     JOIN courses co ON co.course_id = c.course_id
     WHERE c.class_id = $1
@@ -223,8 +225,7 @@ router.get(
         JOIN students s ON s.student_id = e.student_id
         JOIN users u ON u.user_id = s.user_id
         LEFT JOIN grades g
-          ON g.class_id = e.class_id
-         AND g.student_id = e.student_id
+          ON g.enrollment_id = e.enrollment_id
         WHERE e.class_id = $1
         GROUP BY s.student_id, u.email
         ORDER BY avg_percent DESC;
@@ -239,11 +240,11 @@ router.get(
           rows.length === 0
             ? "0.00%"
             : `${Number(
-                (
-                  rows.reduce((acc, r) => acc + Number(r.avg_percent || 0), 0) /
-                  rows.length
-                ).toFixed(2),
-              ).toFixed(2)}%`,
+              (
+                rows.reduce((acc, r) => acc + Number(r.avg_percent || 0), 0) /
+                rows.length
+              ).toFixed(2),
+            ).toFixed(2)}%`,
       };
 
       res.json({ summary, rows });
@@ -271,26 +272,23 @@ router.get(
         SELECT
           s.student_id,
           u.email,
-          COUNT(ar.record_id)::int AS sessions_total,
-          SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::int AS present_count,
-          SUM(CASE WHEN ar.status = 'absent' THEN 1 ELSE 0 END)::int AS absent_count,
-          SUM(CASE WHEN ar.status = 'late' THEN 1 ELSE 0 END)::int AS late_count,
-          SUM(CASE WHEN ar.status = 'excused' THEN 1 ELSE 0 END)::int AS excused_count,
+          COUNT(a.attendance_id)::int AS sessions_total,
+          SUM(CASE WHEN LOWER(a.status) = 'present' THEN 1 ELSE 0 END)::int AS present_count,
+          SUM(CASE WHEN LOWER(a.status) = 'absent' THEN 1 ELSE 0 END)::int AS absent_count,
+          SUM(CASE WHEN LOWER(a.status) = 'late' THEN 1 ELSE 0 END)::int AS late_count,
+          SUM(CASE WHEN LOWER(a.status) = 'excused' THEN 1 ELSE 0 END)::int AS excused_count,
           COALESCE(
             ROUND(
-              CASE WHEN COUNT(ar.record_id) = 0 THEN 0
-              ELSE (SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::numeric / COUNT(ar.record_id)) * 100
+              CASE WHEN COUNT(a.attendance_id) = 0 THEN 0
+              ELSE (SUM(CASE WHEN LOWER(a.status) = 'present' THEN 1 ELSE 0 END)::numeric / COUNT(a.attendance_id)) * 100
               END
             , 2)
           , 0) AS attendance_percent
         FROM enrollments e
         JOIN students s ON s.student_id = e.student_id
         JOIN users u ON u.user_id = s.user_id
-        LEFT JOIN attendance_sessions asess
-          ON asess.class_id = e.class_id
-        LEFT JOIN attendance_records ar
-          ON ar.session_id = asess.session_id
-         AND ar.student_id = e.student_id
+        LEFT JOIN attendance a
+          ON a.enrollment_id = e.enrollment_id
         WHERE e.class_id = $1
         GROUP BY s.student_id, u.email
         ORDER BY attendance_percent DESC;
@@ -302,9 +300,9 @@ router.get(
         rows.length === 0
           ? 0
           : rows.reduce(
-              (acc, r) => acc + Number(r.attendance_percent || 0),
-              0,
-            ) / rows.length;
+            (acc, r) => acc + Number(r.attendance_percent || 0),
+            0,
+          ) / rows.length;
 
       const summary = {
         classId: Number(classId),
@@ -346,8 +344,7 @@ router.get(
         JOIN students s ON s.student_id = e.student_id
         JOIN users u ON u.user_id = s.user_id
         LEFT JOIN grades g
-          ON g.class_id = e.class_id
-         AND g.student_id = e.student_id
+          ON g.enrollment_id = e.enrollment_id
         WHERE e.class_id = $1
         GROUP BY s.student_id, u.email
         ORDER BY avg_percent DESC;
@@ -358,14 +355,14 @@ router.get(
       if (String(format).toLowerCase() === "pdf") {
         const info = await getClassCourseInfo(classId);
         const title = info
-          ? `Grades Overview Report\n${info.code} - ${info.name} (${info.semester} ${info.year})`
+          ? `Grades Overview Report\n${info.code} - ${info.name} (${info.semester})`
           : "Grades Overview Report";
 
         const avg =
           rows.length === 0
             ? 0
             : rows.reduce((acc, r) => acc + Number(r.avg_percent || 0), 0) /
-              rows.length;
+            rows.length;
 
         return sendPDF(
           res,
@@ -421,26 +418,23 @@ router.get(
         SELECT
           s.student_id,
           u.email,
-          COUNT(ar.record_id)::int AS sessions_total,
-          SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::int AS present_count,
-          SUM(CASE WHEN ar.status = 'absent' THEN 1 ELSE 0 END)::int AS absent_count,
-          SUM(CASE WHEN ar.status = 'late' THEN 1 ELSE 0 END)::int AS late_count,
-          SUM(CASE WHEN ar.status = 'excused' THEN 1 ELSE 0 END)::int AS excused_count,
+          COUNT(a.attendance_id)::int AS sessions_total,
+          SUM(CASE WHEN LOWER(a.status) = 'present' THEN 1 ELSE 0 END)::int AS present_count,
+          SUM(CASE WHEN LOWER(a.status) = 'absent' THEN 1 ELSE 0 END)::int AS absent_count,
+          SUM(CASE WHEN LOWER(a.status) = 'late' THEN 1 ELSE 0 END)::int AS late_count,
+          SUM(CASE WHEN LOWER(a.status) = 'excused' THEN 1 ELSE 0 END)::int AS excused_count,
           COALESCE(
             ROUND(
-              CASE WHEN COUNT(ar.record_id) = 0 THEN 0
-              ELSE (SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::numeric / COUNT(ar.record_id)) * 100
+              CASE WHEN COUNT(a.attendance_id) = 0 THEN 0
+              ELSE (SUM(CASE WHEN LOWER(a.status) = 'present' THEN 1 ELSE 0 END)::numeric / COUNT(a.attendance_id)) * 100
               END
             , 2)
           , 0) AS attendance_percent
         FROM enrollments e
         JOIN students s ON s.student_id = e.student_id
         JOIN users u ON u.user_id = s.user_id
-        LEFT JOIN attendance_sessions asess
-          ON asess.class_id = e.class_id
-        LEFT JOIN attendance_records ar
-          ON ar.session_id = asess.session_id
-         AND ar.student_id = e.student_id
+        LEFT JOIN attendance a
+          ON a.enrollment_id = e.enrollment_id
         WHERE e.class_id = $1
         GROUP BY s.student_id, u.email
         ORDER BY attendance_percent DESC;
@@ -451,16 +445,16 @@ router.get(
       if (String(format).toLowerCase() === "pdf") {
         const info = await getClassCourseInfo(classId);
         const title = info
-          ? `Attendance Overview Report\n${info.code} - ${info.name} (${info.semester} ${info.year})`
+          ? `Attendance Overview Report\n${info.code} - ${info.name} (${info.semester})`
           : "Attendance Overview Report";
 
         const avg =
           rows.length === 0
             ? 0
             : rows.reduce(
-                (acc, r) => acc + Number(r.attendance_percent || 0),
-                0,
-              ) / rows.length;
+              (acc, r) => acc + Number(r.attendance_percent || 0),
+              0,
+            ) / rows.length;
 
         return sendPDF(
           res,

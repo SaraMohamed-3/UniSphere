@@ -4,6 +4,10 @@ const db = require("../data/db");
 
 const { verifyJWT, adminOnly } = require("../middleware/auth");
 
+function getUserId(req) {
+  return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+}
+
 /*
 PUBLIC (Authenticated) – Get Published Announcements
 */
@@ -61,13 +65,17 @@ ADMIN – Create Announcement
 */
 router.post("/", verifyJWT, adminOnly, async (req, res) => {
   try {
-    const { title, body, is_published = true } = req.body;
+    const { title, body, is_published, isPublished } = req.body;
 
     if (!title || !body) {
       return res.status(400).json({ message: "Title and body are required" });
     }
 
-    const createdBy = req.user.user_id;
+    const createdBy = getUserId(req);
+    if (!createdBy) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+    const publish = is_published ?? isPublished ?? true;
 
     const result = await db.query(
       `
@@ -75,7 +83,7 @@ router.post("/", verifyJWT, adminOnly, async (req, res) => {
       VALUES ($1, $2, $3, $4)
       RETURNING announcement_id, title, body, created_by, is_published, created_at
       `,
-      [title, body, createdBy, !!is_published],
+      [title, body, createdBy, !!publish],
     );
 
     res.status(201).json(result.rows[0]);
