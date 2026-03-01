@@ -71,21 +71,19 @@ function App() {
 
           <Route
             path="courses"
-            element={<div style={{ padding: 18 }}>My Courses (later)</div>}
+            element={<StudentPage view="courses" />}
           />
           <Route
             path="grades"
-            element={<div style={{ padding: 18 }}>Grades (later)</div>}
+            element={<StudentPage view="grades" />}
           />
           <Route
             path="attendance"
-            element={<div style={{ padding: 18 }}>Attendance (later)</div>}
+            element={<StudentPage view="attendance" />}
           />
           <Route
             path="transcript"
-            element={
-              <div style={{ padding: 18 }}>Transcript Requests (later)</div>
-            }
+            element={<StudentPage view="transcript" />}
           />
         </Route>
 
