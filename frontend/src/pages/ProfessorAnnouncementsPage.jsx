@@ -5,6 +5,8 @@ export default function ProfessorAnnouncementsPage() {
     const [classes, setClasses] = useState([]);
     const [selectedClass, setSelectedClass] = useState(null);
     const [announcements, setAnnouncements] = useState([]);
+    const [globalAnnouncements, setGlobalAnnouncements] = useState([]);
+    const [activeTab, setActiveTab] = useState("class");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -20,6 +22,7 @@ export default function ProfessorAnnouncementsPage() {
 
     useEffect(() => {
         fetchClasses();
+        fetchGlobalAnnouncements();
     }, []);
 
     const fetchClasses = async () => {
@@ -49,6 +52,18 @@ export default function ProfessorAnnouncementsPage() {
             setError("");
         } catch (err) {
             setError(err.response?.data?.message || "Failed to load announcements");
+        }
+    };
+
+    const fetchGlobalAnnouncements = async () => {
+        try {
+            const response = await api.get("/announcements", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setGlobalAnnouncements(response.data);
+        } catch (err) {
+            setGlobalAnnouncements([]);
+            setError(err.response?.data?.message || "Failed to load global announcements");
         }
     };
 
@@ -190,6 +205,51 @@ export default function ProfessorAnnouncementsPage() {
                 </div>
             )}
 
+            <div
+                style={{
+                    display: "flex",
+                    gap: 8,
+                    marginBottom: 18,
+                    background: "#f3f4f6",
+                    padding: 6,
+                    borderRadius: 10,
+                    width: "fit-content",
+                }}
+            >
+                <button
+                    onClick={() => setActiveTab("class")}
+                    style={{
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        background: activeTab === "class" ? "#0f766e" : "transparent",
+                        color: activeTab === "class" ? "#fff" : "#374151",
+                    }}
+                >
+                    Class
+                </button>
+                <button
+                    onClick={() => setActiveTab("global")}
+                    style={{
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        background: activeTab === "global" ? "#1d4ed8" : "transparent",
+                        color: activeTab === "global" ? "#fff" : "#374151",
+                    }}
+                >
+                    Global
+                </button>
+            </div>
+
+            {activeTab === "class" && (
+                <>
             {/* Class Selector */}
             {classes.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
@@ -572,6 +632,104 @@ export default function ProfessorAnnouncementsPage() {
                 >
                     No classes assigned yet.
                 </div>
+            )}
+                </>
+            )}
+
+            {activeTab === "global" && (
+            <div>
+                <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 12 }}>
+                    Global Announcements
+                </h2>
+                <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 14 }}>
+                    Published platform-wide announcements from admin.
+                </p>
+
+                {globalAnnouncements.length === 0 ? (
+                    <div
+                        style={{
+                            padding: 24,
+                            textAlign: "center",
+                            background: "#f9fafb",
+                            borderRadius: 12,
+                            color: "#6b7280",
+                        }}
+                    >
+                        No global announcements available.
+                    </div>
+                ) : (
+                    <div style={{ display: "grid", gap: 12 }}>
+                        {globalAnnouncements.map((ann) => (
+                            <div
+                                key={`global-${ann.announcement_id}`}
+                                style={{
+                                    background: "#fff",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: 12,
+                                    padding: 16,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "start",
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    <h3
+                                        style={{
+                                            fontSize: 15,
+                                            fontWeight: 900,
+                                            color: "#111827",
+                                            margin: 0,
+                                        }}
+                                    >
+                                        {ann.title}
+                                    </h3>
+                                    <span
+                                        style={{
+                                            display: "inline-block",
+                                            background: "#dbeafe",
+                                            color: "#1d4ed8",
+                                            padding: "4px 8px",
+                                            borderRadius: 6,
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        Global
+                                    </span>
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        color: "#6b7280",
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    {new Date(ann.created_at).toLocaleDateString()}{" "}
+                                    {new Date(ann.created_at).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}
+                                </div>
+                                <p
+                                    style={{
+                                        color: "#374151",
+                                        fontSize: 14,
+                                        lineHeight: "1.5",
+                                        margin: 0,
+                                        whiteSpace: "pre-wrap",
+                                    }}
+                                >
+                                    {ann.body}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
             )}
         </div>
     );

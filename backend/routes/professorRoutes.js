@@ -4,12 +4,19 @@ const router = express.Router();
 const db = require("../data/db");
 const { verifyJWT, professorOnly } = require("../middleware/auth");
 
+function getUserId(req) {
+  return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+}
+
 // =====================================================
 // DASHBOARD & OVERVIEW
 // =====================================================
 router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
     // Get professor info and department
     const profRes = await db.query(
@@ -58,8 +65,7 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
         AND NOT EXISTS (
           SELECT 1
           FROM grades g
-          WHERE g.class_id = e.class_id
-            AND g.student_id = e.student_id
+          WHERE g.enrollment_id = e.enrollment_id
         )
       `,
       [professorId]
@@ -125,10 +131,12 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
 // CLASSES MANAGEMENT
 // =====================================================
 
-// GET /api/professor/classes/list
-router.get("/classes/list", verifyJWT, professorOnly, async (req, res) => {
+async function listProfessorClasses(req, res) {
   try {
-    const userId = req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
     const result = await db.query(
       `
@@ -136,12 +144,12 @@ router.get("/classes/list", verifyJWT, professorOnly, async (req, res) => {
         c.class_id,
         co.code,
         co.name,
-        c.semester,
-        c.year
+        c.semester
       FROM classes c
       JOIN courses co ON co.course_id = c.course_id
-      WHERE c.professor_id = $1
-      ORDER BY c.year DESC, c.semester DESC, co.code ASC
+      JOIN professors p ON c.professor_id = p.professor_id
+      WHERE p.user_id = $1
+      ORDER BY c.semester DESC, co.code ASC
       `,
       [userId]
     );
@@ -150,13 +158,22 @@ router.get("/classes/list", verifyJWT, professorOnly, async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
-});
+}
+
+// GET /api/professor/classes
+router.get("/classes", verifyJWT, professorOnly, listProfessorClasses);
+
+// GET /api/professor/classes/list
+router.get("/classes/list", verifyJWT, professorOnly, listProfessorClasses);
 
 // GET /api/professor/classes/:classId
 router.get("/classes/:classId", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const { classId } = req.params;
-    const userId = req.user.user_id;
+    const classId = parseInt(req.params.classId, 10);
+    if (isNaN(classId)) {
+      return res.status(400).json({ message: "Invalid class ID" });
+    }
+    const userId = getUserId(req);
 
     const classRes = await db.query(
       `
@@ -184,8 +201,8 @@ router.get("/classes/:classId", verifyJWT, professorOnly, async (req, res) => {
 // =====================================================
 router.get("/classes/:classId/students", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const { classId } = req.params;
-    const userId = req.user.user_id;
+    const classId = parseInt(req.params.classId, 10);
+    const userId = getUserId(req);
 
     // Verify professor owns class
     const classRes = await db.query(
@@ -231,8 +248,8 @@ router.get("/classes/:classId/students", verifyJWT, professorOnly, async (req, r
 // GET /api/professor/classes/:classId/grades
 router.get("/classes/:classId/grades", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const { classId } = req.params;
-    const userId = req.user.user_id;
+    const classId = parseInt(req.params.classId, 10);
+    const userId = getUserId(req);
 
     const classRes = await db.query(
       `SELECT c.class_id FROM classes c JOIN professors p ON c.professor_id = p.professor_id WHERE c.class_id = $1 AND p.user_id = $2`,
@@ -266,7 +283,7 @@ router.get("/classes/:classId/grades", verifyJWT, professorOnly, async (req, res
 router.post("/grades", verifyJWT, professorOnly, async (req, res) => {
   try {
     const { enrollmentId, assessmentType, score, maxScore } = req.body;
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
 
     if (!enrollmentId || !assessmentType || score === undefined)
       return res.status(400).json({ message: "Missing required fields" });
@@ -313,8 +330,8 @@ router.post("/grades", verifyJWT, professorOnly, async (req, res) => {
 // =====================================================
 router.get("/classes/:classId/attendance", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const { classId } = req.params;
-    const userId = req.user.user_id;
+    const classId = parseInt(req.params.classId, 10);
+    const userId = getUserId(req);
 
     const classRes = await db.query(
       `SELECT c.class_id FROM classes c JOIN professors p ON c.professor_id = p.professor_id WHERE c.class_id = $1 AND p.user_id = $2`,
@@ -347,7 +364,7 @@ router.get("/classes/:classId/attendance", verifyJWT, professorOnly, async (req,
 router.post("/attendance", verifyJWT, professorOnly, async (req, res) => {
   try {
     const { enrollmentId, classDate, status, notes } = req.body;
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
 
     if (!enrollmentId || !classDate || !status)
       return res.status(400).json({ message: "Missing required fields" });
@@ -398,8 +415,8 @@ router.post("/attendance", verifyJWT, professorOnly, async (req, res) => {
 // =====================================================
 router.get("/classes/:classId/announcements", verifyJWT, professorOnly, async (req, res) => {
   try {
-    const { classId } = req.params;
-    const userId = req.user.user_id;
+    const classId = parseInt(req.params.classId, 10);
+    const userId = getUserId(req);
 
     const classRes = await db.query(
       `SELECT c.class_id FROM classes c JOIN professors p ON c.professor_id = p.professor_id WHERE c.class_id = $1 AND p.user_id = $2`,
@@ -427,7 +444,7 @@ router.get("/classes/:classId/announcements", verifyJWT, professorOnly, async (r
 router.post("/announcements", verifyJWT, professorOnly, async (req, res) => {
   try {
     const { classId, title, body, isPublished } = req.body;
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
 
     if (!classId || !title || !body)
       return res.status(400).json({ message: "Missing required fields" });
@@ -457,7 +474,7 @@ router.put("/announcements/:announcementId", verifyJWT, professorOnly, async (re
   try {
     const { announcementId } = req.params;
     const { title, body, isPublished } = req.body;
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
 
     const annRes = await db.query(
       `SELECT ca.announcement_id FROM course_announcements ca
@@ -486,7 +503,7 @@ router.put("/announcements/:announcementId", verifyJWT, professorOnly, async (re
 router.delete("/announcements/:announcementId", verifyJWT, professorOnly, async (req, res) => {
   try {
     const { announcementId } = req.params;
-    const userId = req.user.user_id;
+    const userId = getUserId(req);
 
     const annRes = await db.query(
       `SELECT ca.announcement_id FROM course_announcements ca

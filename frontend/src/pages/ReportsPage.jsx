@@ -154,7 +154,7 @@ export default function ReportsPage() {
 
     try {
       const res = await api.get(`/reports/${type}/overview`, {
-        params: { classId },
+        params: { classId: parseInt(classId, 10) },
         headers: { Authorization: `Bearer ${token}` },
       });
       if (type === "grades") setGrades(res.data);
@@ -180,7 +180,7 @@ export default function ReportsPage() {
 
     try {
       const res = await api.get(`/reports/${type}/export`, {
-        params: { classId, format },
+        params: { classId: parseInt(classId, 10), format },
         headers: { Authorization: `Bearer ${token}` },
         responseType: "blob",
       });
@@ -204,15 +204,15 @@ export default function ReportsPage() {
       ? { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b" }
       : msgType === "success"
         ? {
-            background: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            color: "#065f46",
-          }
+          background: "#ecfdf5",
+          border: "1px solid #a7f3d0",
+          color: "#065f46",
+        }
         : {
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            color: "#1e3a8a",
-          };
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          color: "#1e3a8a",
+        };
 
   return (
     <div
@@ -263,7 +263,7 @@ export default function ReportsPage() {
             <option value="">-- Select a class --</option>
             {classes.map((c) => (
               <option key={c.class_id} value={c.class_id}>
-                {c.code} - {c.name} ({c.semester} {c.year})
+                {c.code} - {c.name} ({c.semester})
               </option>
             ))}
           </select>

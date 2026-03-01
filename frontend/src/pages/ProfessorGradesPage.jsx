@@ -4,6 +4,7 @@ import api from "../services/api";
 export default function ProfessorGradesPage() {
     const [classes, setClasses] = useState([]);
     const [selectedClass, setSelectedClass] = useState(null);
+    const [students, setStudents] = useState([]);
     const [grades, setGrades] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -49,9 +50,25 @@ export default function ProfessorGradesPage() {
         }
     };
 
+    const fetchStudents = async (classId) => {
+        try {
+            const response = await api.get(`/professor/classes/${classId}/students`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setStudents(response.data);
+            setError("");
+        } catch (err) {
+            setStudents([]);
+            setError(err.response?.data?.message || "Failed to load students");
+        }
+    };
+
     const handleSelectClass = (classItem) => {
         setSelectedClass(classItem);
+        setFormData({ enrollmentId: "", assessmentType: "", score: "", maxScore: 100 });
+        setStudents([]);
         fetchGrades(classItem.class_id);
+        fetchStudents(classItem.class_id);
     };
 
     const handleSubmitGrade = async (e) => {
@@ -232,22 +249,11 @@ export default function ProfessorGradesPage() {
                                     required
                                 >
                                     <option value="">-- Select student --</option>
-                                    {grades
-                                        .reduce((unique, g) => {
-                                            if (
-                                                !unique.find(
-                                                    (item) => item.enrollment_id === g.enrollment_id
-                                                )
-                                            ) {
-                                                unique.push(g);
-                                            }
-                                            return unique;
-                                        }, [])
-                                        .map((g) => (
-                                            <option key={g.enrollment_id} value={g.enrollment_id}>
-                                                {g.email}
-                                            </option>
-                                        ))}
+                                    {students.map((s) => (
+                                        <option key={s.enrollment_id} value={s.enrollment_id}>
+                                            {s.email}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
