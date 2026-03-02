@@ -11,7 +11,12 @@ import AdminPage from "./pages/AdminPage";
 import AdminCourseManagement from "./pages/AdminCourseManagement";
 import AdminRequests from "./pages/AdminRequests";
 
-import StudentPage from "./pages/StudentPage";
+import StudentDashboardPage from "./pages/StudentDashboardPage";
+import StudentCoursesPage from "./pages/StudentCoursesPage";
+import StudentGradesPage from "./pages/StudentGradesPage";
+import StudentExamSchedulePage from "./pages/StudentExamSchedulePage";
+import StudentAttendancePage from "./pages/StudentAttendancePage";
+import StudentTranscriptPage from "./pages/StudentTranscriptPage";
 import ProfessorPage from "./pages/ProfessorPage";
 import StudentLayout from "./pages/StudentLayout";
 import ProfessorLayout from "./pages/ProfessorLayout";
@@ -63,28 +68,17 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<StudentPage />} />
+          <Route index element={<StudentDashboardPage />} />
           <Route path="profile" element={<ProfilePage />} />
 
           {/* Student View All announcements */}
           <Route path="announcements" element={<AnnouncementsPage />} />
 
-          <Route
-            path="courses"
-            element={<StudentPage view="courses" />}
-          />
-          <Route
-            path="grades"
-            element={<StudentPage view="grades" />}
-          />
-          <Route
-            path="attendance"
-            element={<StudentPage view="attendance" />}
-          />
-          <Route
-            path="transcript"
-            element={<StudentPage view="transcript" />}
-          />
+          <Route path="courses" element={<StudentCoursesPage />} />
+          <Route path="grades" element={<StudentGradesPage />} />
+          <Route path="exams" element={<StudentExamSchedulePage />} />
+          <Route path="attendance" element={<StudentAttendancePage />} />
+          <Route path="transcript" element={<StudentTranscriptPage />} />
         </Route>
 
         {/* PROFESSOR AREA */}

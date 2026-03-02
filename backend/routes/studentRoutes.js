@@ -8,6 +8,22 @@ function getUserId(req) {
   return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
 }
 
+async function columnExists(tableName, columnName) {
+  const r = await db.query(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = $1
+        AND column_name = $2
+    ) AS exists
+    `,
+    [tableName, columnName],
+  );
+  return !!r.rows[0]?.exists;
+}
+
 async function getStudentContext(req) {
   const userId = getUserId(req);
   if (!userId) return null;
@@ -378,6 +394,12 @@ router.post("/transcript-requests", verifyJWT, studentOnly, async (req, res) => 
   try {
     const ctx = await getStudentContext(req);
     if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    const { transcriptType } = req.body || {};
+    const normalizedType = String(transcriptType || "official").toLowerCase();
+    const allowedTypes = ["official", "unofficial", "graduation"];
+    if (!allowedTypes.includes(normalizedType)) {
+      return res.status(400).json({ message: "Invalid transcript type" });
+    }
 
     const pending = await db.query(
       `SELECT request_id FROM transcript_requests WHERE student_id = $1 AND status = 'pending'`,
@@ -387,13 +409,54 @@ router.post("/transcript-requests", verifyJWT, studentOnly, async (req, res) => 
       return res.status(409).json({ message: "You already have a pending transcript request" });
     }
 
+    const [hasTranscriptType, hasReadyForCollection] = await Promise.all([
+      columnExists("transcript_requests", "transcript_type"),
+      columnExists("transcript_requests", "ready_for_collection"),
+    ]);
+
+    let created;
+    if (hasTranscriptType && hasReadyForCollection) {
+      created = await db.query(
+        `
+        INSERT INTO transcript_requests (student_id, status, transcript_type, ready_for_collection)
+        VALUES ($1, 'pending', $2, FALSE)
+        RETURNING request_id
+        `,
+        [ctx.student_id, normalizedType],
+      );
+    } else if (hasTranscriptType) {
+      created = await db.query(
+        `
+        INSERT INTO transcript_requests (student_id, status, transcript_type)
+        VALUES ($1, 'pending', $2)
+        RETURNING request_id
+        `,
+        [ctx.student_id, normalizedType],
+      );
+    } else {
+      created = await db.query(
+        `
+        INSERT INTO transcript_requests (student_id, status)
+        VALUES ($1, 'pending')
+        RETURNING request_id
+        `,
+        [ctx.student_id],
+      );
+    }
+
+    const requestId = created.rows[0]?.request_id;
     const r = await db.query(
       `
-      INSERT INTO transcript_requests (student_id, status)
-      VALUES ($1, 'pending')
-      RETURNING request_id, student_id, status, created_at
+      SELECT
+        request_id,
+        status,
+        ${hasTranscriptType ? "transcript_type" : "'official'::text AS transcript_type"},
+        ${hasReadyForCollection ? "ready_for_collection" : "FALSE AS ready_for_collection"},
+        created_at
+      FROM transcript_requests
+      WHERE request_id = $1
       `,
-      [ctx.student_id],
+      [requestId],
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {
@@ -407,10 +470,19 @@ router.get("/transcript-requests", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
     if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    const [hasTranscriptType, hasReadyForCollection] = await Promise.all([
+      columnExists("transcript_requests", "transcript_type"),
+      columnExists("transcript_requests", "ready_for_collection"),
+    ]);
 
     const r = await db.query(
       `
-      SELECT request_id, status, created_at
+      SELECT
+        request_id,
+        status,
+        ${hasTranscriptType ? "transcript_type" : "'official'::text AS transcript_type"},
+        ${hasReadyForCollection ? "ready_for_collection" : "FALSE AS ready_for_collection"},
+        created_at
       FROM transcript_requests
       WHERE student_id = $1
       ORDER BY created_at DESC
