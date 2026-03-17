@@ -1,0 +1,24 @@
+{
+  "classes": [
+    { "class_id": 101, "course_code": "CSE329", "professor_id": 7, "size": 35 },
+    { "class_id": 102, "course_code": "EEC487", "professor_id": 8, "size": 40 },
+    { "class_id": 103, "course_code": "CSE403", "professor_id": 7, "size": 25 },
+    { "class_id": 104, "course_code": "EEC486", "professor_id": 9, "size": 30 },
+    { "class_id": 105, "course_code": "CCE401", "professor_id": 10, "size": 20 }
+  ],
+  "rooms": [
+    { "room_id": 1, "name": "Lab 301", "capacity": 40 },
+    { "room_id": 2, "name": "Hall B-201", "capacity": 50 },
+    { "room_id": 3, "name": "Hall C-105", "capacity": 35 }
+  ],
+  "timeSlots": [
+    { "slot_id": 1, "day": "Sunday", "start": "08:30", "end": "09:30" },
+    { "slot_id": 2, "day": "Sunday", "start": "09:30", "end": "10:30" },
+    { "slot_id": 3, "day": "Monday", "start": "10:30", "end": "11:30" },
+    { "slot_id": 4, "day": "Tuesday", "start": "11:30", "end": "12:30" },
+    { "slot_id": 5, "day": "Wednesday", "start": "12:30", "end": "13:30" }
+  ],
+  "populationSize": 60,
+  "generations": 80,
+  "mutationRate": 0.12
+}

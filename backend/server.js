@@ -10,6 +10,7 @@ const profileRoutes = require("./routes/profileRoutes");
 const reportsRoutes = require("./routes/reportsRoutes");
 const registrationRoutes = require("./modules/registration/registrationRoutes");
 const feesRoutes = require("./modules/fees/feesRoutes");
+const schedulerRoutes = require("./modules/scheduler/schedulerRoutes");
 
 const app = express();
 const PORT = 5050;
@@ -28,6 +29,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/student/registration", registrationRoutes);
 app.use("/api/student/fees", feesRoutes);
+app.use("/api/scheduler", schedulerRoutes);
 // Fallback
 app.use((req, res) => {
   res.status(404).json({

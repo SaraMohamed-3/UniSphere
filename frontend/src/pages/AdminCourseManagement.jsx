@@ -42,6 +42,27 @@ export default function AdminCourseManagement() {
     is_active: true,
   });
 
+  // Scheduler
+  const [rooms, setRooms] = useState([]);
+  const [timeSlots, setTimeSlots] = useState([]);
+  const [roomForm, setRoomForm] = useState({ name: "", capacity: "" });
+  const [slotForm, setSlotForm] = useState({ day: "", start_time: "", end_time: "" });
+  const [scheduleParams, setScheduleParams] = useState({
+    semester: "",
+    year: "",
+    populationSize: 60,
+    generations: 80,
+    mutationRate: 0.12,
+  });
+  const [scheduleResult, setScheduleResult] = useState(null);
+  const [scheduleRuns, setScheduleRuns] = useState([]);
+  const [professorUnavailability, setProfessorUnavailability] = useState([]);
+  const [unavailabilityForm, setUnavailabilityForm] = useState({
+    professor_id: "",
+    slot_id: "",
+    reason: "",
+  });
+
   // Fetch initial data
   const fetchCourses = () => {
     api.get("/admin/courses", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
@@ -96,6 +117,30 @@ export default function AdminCourseManagement() {
       .catch((err) => console.error(err));
   };
 
+  const fetchSchedulerResources = () => {
+    api
+      .get("/scheduler/resources", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        params: { semester: scheduleParams.semester, year: scheduleParams.year },
+      })
+      .then((res) => {
+        setRooms(res.data?.rooms || []);
+        setTimeSlots(res.data?.timeSlots || []);
+        setProfessors(res.data?.professors || professors);
+        setProfessorUnavailability(res.data?.unavailability || []);
+      })
+      .catch((err) => console.error(err));
+  };
+
+  const fetchScheduleRuns = () => {
+    api
+      .get("/scheduler/runs", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => setScheduleRuns(res.data || []))
+      .catch((err) => console.error(err));
+  };
+
   useEffect(() => {
     fetchCourses();
     fetchClasses();
@@ -104,6 +149,8 @@ export default function AdminCourseManagement() {
     fetchTuitionRules();
     fetchFeeComponents();
     fetchRegistrationWindows();
+    fetchSchedulerResources();
+    fetchScheduleRuns();
   }, []);
 
   // --- Handlers ---
@@ -259,6 +306,213 @@ const handleExamSubmit = (e) => {
       .then(() => {
         alert("Registration window deleted");
         fetchRegistrationWindows();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleRoomSubmit = (e) => {
+    e.preventDefault();
+    api
+      .post("/scheduler/rooms", roomForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Room added");
+        setRoomForm({ name: "", capacity: "" });
+        fetchSchedulerResources();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleDeleteRoom = (roomId) => {
+    const ok = window.confirm("Delete this room?");
+    if (!ok) return;
+    api
+      .delete(`/scheduler/rooms/${roomId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Room deleted");
+        fetchSchedulerResources();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleSlotSubmit = (e) => {
+    e.preventDefault();
+    api
+      .post("/scheduler/time-slots", slotForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Time slot added");
+        setSlotForm({ day: "", start_time: "", end_time: "" });
+        fetchSchedulerResources();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleDeleteSlot = (slotId) => {
+    const ok = window.confirm("Delete this time slot?");
+    if (!ok) return;
+    api
+      .delete(`/scheduler/time-slots/${slotId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Time slot deleted");
+        fetchSchedulerResources();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const exportScheduleCsv = (assignments) => {
+    const header = [
+      "Class ID",
+      "Course Code",
+      "Professor",
+      "Day",
+      "Start",
+      "End",
+      "Room",
+    ];
+    const rows = (assignments || []).map((a) => [
+      a.class_id || "",
+      a.course_code || "",
+      a.professor_name || a.professor_id || "",
+      a.day || "",
+      a.start || "",
+      a.end || "",
+      a.room_name || "",
+    ]);
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "schedule_run.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const conflictSummary = (conflicts) => {
+    const summary = {};
+    (conflicts || []).forEach((c) => {
+      summary[c.type] = (summary[c.type] || 0) + 1;
+    });
+    return summary;
+  };
+
+  const buildScheduleGrid = () => {
+    if (!scheduleResult?.assignments?.length || !timeSlots.length) return null;
+    const days = Array.from(new Set(timeSlots.map((s) => s.day)));
+    const slotLabels = timeSlots.map((s) => ({
+      key: `${s.day}_${s.start_time}_${s.end_time}`,
+      day: s.day,
+      label: `${s.start_time}-${s.end_time}`,
+      start: s.start_time,
+      end: s.end_time,
+    }));
+    const grid = new Map();
+    scheduleResult.assignments.forEach((a) => {
+      const k = `${a.day}_${a.start}_${a.end}`;
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(a);
+    });
+    return { days, slotLabels, grid };
+  };
+
+  const handleRunScheduler = (e) => {
+    e.preventDefault();
+    api
+      .post(
+        "/scheduler/run-db",
+        {
+          semester: scheduleParams.semester || undefined,
+          year: scheduleParams.year || undefined,
+          populationSize: Number(scheduleParams.populationSize),
+          generations: Number(scheduleParams.generations),
+          mutationRate: Number(scheduleParams.mutationRate),
+        },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+      )
+      .then((res) => {
+        setScheduleResult(res.data);
+        fetchScheduleRuns();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleApplySchedule = () => {
+    if (!scheduleResult?.assignments?.length) return;
+    const ok = window.confirm("Apply this schedule to classes?");
+    if (!ok) return;
+    api
+      .post(
+        "/scheduler/apply",
+        { assignments: scheduleResult.assignments },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+      )
+      .then(() => {
+        alert("Schedule applied to classes");
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleApplyRun = (runId) => {
+    const ok = window.confirm("Apply this saved schedule run?");
+    if (!ok) return;
+    api
+      .post(`/scheduler/runs/${runId}/apply`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => alert("Schedule run applied"))
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handlePostAnnouncement = () => {
+    if (!scheduleResult?.assignments?.length) return;
+    const title = "Timetable Schedule Published";
+    const body = `A new timetable schedule has been published. Please check your course schedule. (Run ID: ${scheduleResult.run_id || "N/A"})`;
+    api
+      .post(
+        "/scheduler/announce",
+        { title, body },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+      )
+      .then(() => alert("Announcement posted"))
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleUnavailabilitySubmit = (e) => {
+    e.preventDefault();
+    api
+      .post(
+        "/scheduler/unavailability",
+        unavailabilityForm,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+      )
+      .then(() => {
+        alert("Unavailability saved");
+        setUnavailabilityForm({ professor_id: "", slot_id: "", reason: "" });
+        fetchSchedulerResources();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handleDeleteUnavailability = (id) => {
+    const ok = window.confirm("Delete this unavailability?");
+    if (!ok) return;
+    api
+      .delete(`/scheduler/unavailability/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Unavailability deleted");
+        fetchSchedulerResources();
       })
       .catch((err) => alert(err.response?.data?.message || err.message));
   };
@@ -673,6 +927,408 @@ const handleExamSubmit = (e) => {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* --- TIMETABLE GA SCHEDULER --- */}
+      <div style={sectionStyle}>
+        <h2 style={{ marginBottom: 15 }}>Timetable GA Scheduler</h2>
+
+        <div style={{ display: "grid", gap: 14 }}>
+          <div>
+            <h3 style={{ marginBottom: 8 }}>Rooms</h3>
+            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleRoomSubmit}>
+              <input
+                placeholder="Room Name"
+                value={roomForm.name}
+                onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="number"
+                placeholder="Capacity"
+                value={roomForm.capacity}
+                onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                style={inputStyle}
+                required
+              />
+              <button type="submit" style={buttonStyle}>Add Room</button>
+            </form>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                  <th style={{ padding: "10px" }}>Room</th>
+                  <th style={{ padding: "10px" }}>Capacity</th>
+                  <th style={{ padding: "10px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rooms.map((r) => (
+                  <tr key={r.room_id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "10px" }}>{r.name}</td>
+                    <td style={{ padding: "10px" }}>{r.capacity}</td>
+                    <td style={{ padding: "10px" }}>
+                      <button
+                        type="button"
+                        style={{ ...buttonStyle, backgroundColor: "#dc2626" }}
+                        onClick={() => handleDeleteRoom(r.room_id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {rooms.length === 0 && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                      No rooms found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3 style={{ marginBottom: 8 }}>Time Slots</h3>
+            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleSlotSubmit}>
+              <input
+                placeholder="Day (e.g. Sunday)"
+                value={slotForm.day}
+                onChange={(e) => setSlotForm({ ...slotForm, day: e.target.value })}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="time"
+                value={slotForm.start_time}
+                onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="time"
+                value={slotForm.end_time}
+                onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })}
+                style={inputStyle}
+                required
+              />
+              <button type="submit" style={buttonStyle}>Add Slot</button>
+            </form>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                  <th style={{ padding: "10px" }}>Day</th>
+                  <th style={{ padding: "10px" }}>Start</th>
+                  <th style={{ padding: "10px" }}>End</th>
+                  <th style={{ padding: "10px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeSlots.map((s) => (
+                  <tr key={s.slot_id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "10px" }}>{s.day}</td>
+                    <td style={{ padding: "10px" }}>{s.start_time}</td>
+                    <td style={{ padding: "10px" }}>{s.end_time}</td>
+                    <td style={{ padding: "10px" }}>
+                      <button
+                        type="button"
+                        style={{ ...buttonStyle, backgroundColor: "#dc2626" }}
+                        onClick={() => handleDeleteSlot(s.slot_id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {timeSlots.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                      No time slots found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3 style={{ marginBottom: 8 }}>Professor Unavailability (Hard Constraint)</h3>
+            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleUnavailabilitySubmit}>
+              <select
+                value={unavailabilityForm.professor_id}
+                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, professor_id: e.target.value })}
+                style={inputStyle}
+                required
+              >
+                <option value="">Select Professor</option>
+                {professors.map((p) => (
+                  <option key={p.user_id || p.professor_id} value={p.professor_id}>
+                    {p.email}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={unavailabilityForm.slot_id}
+                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, slot_id: e.target.value })}
+                style={inputStyle}
+                required
+              >
+                <option value="">Select Time Slot</option>
+                {timeSlots.map((s) => (
+                  <option key={s.slot_id} value={s.slot_id}>
+                    {s.day} {s.start_time}-{s.end_time}
+                  </option>
+                ))}
+              </select>
+              <input
+                placeholder="Reason (optional)"
+                value={unavailabilityForm.reason}
+                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, reason: e.target.value })}
+                style={inputStyle}
+              />
+              <button type="submit" style={buttonStyle}>Add Block</button>
+            </form>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                  <th style={{ padding: "10px" }}>Professor</th>
+                  <th style={{ padding: "10px" }}>Slot</th>
+                  <th style={{ padding: "10px" }}>Reason</th>
+                  <th style={{ padding: "10px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {professorUnavailability.map((u) => (
+                  <tr key={u.unavailability_id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "10px" }}>
+                      {professors.find((p) => p.professor_id === u.professor_id)?.name
+                        || professors.find((p) => p.professor_id === u.professor_id)?.email
+                        || u.professor_id}
+                    </td>
+                    <td style={{ padding: "10px" }}>{u.day} {u.start_time}-{u.end_time}</td>
+                    <td style={{ padding: "10px" }}>{u.reason || "-"}</td>
+                    <td style={{ padding: "10px" }}>
+                      <button
+                        type="button"
+                        style={{ ...buttonStyle, backgroundColor: "#dc2626" }}
+                        onClick={() => handleDeleteUnavailability(u.unavailability_id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {professorUnavailability.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                      No unavailability set.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3 style={{ marginBottom: 8 }}>Run Scheduler</h3>
+            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleRunScheduler}>
+              <input
+                placeholder="Semester (optional)"
+                value={scheduleParams.semester}
+                onChange={(e) => setScheduleParams({ ...scheduleParams, semester: e.target.value })}
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                placeholder="Year (optional)"
+                value={scheduleParams.year}
+                onChange={(e) => setScheduleParams({ ...scheduleParams, year: e.target.value })}
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                placeholder="Population"
+                value={scheduleParams.populationSize}
+                onChange={(e) => setScheduleParams({ ...scheduleParams, populationSize: e.target.value })}
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                placeholder="Generations"
+                value={scheduleParams.generations}
+                onChange={(e) => setScheduleParams({ ...scheduleParams, generations: e.target.value })}
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Mutation Rate"
+                value={scheduleParams.mutationRate}
+                onChange={(e) => setScheduleParams({ ...scheduleParams, mutationRate: e.target.value })}
+                style={inputStyle}
+              />
+              <button type="submit" style={buttonStyle}>Run GA</button>
+              <button type="button" style={{ ...buttonStyle, backgroundColor: "#0f766e" }} onClick={handleApplySchedule}>
+                Apply To Classes
+              </button>
+              <button type="button" style={{ ...buttonStyle, backgroundColor: "#1d4ed8" }} onClick={handlePostAnnouncement}>
+                Post Announcement
+              </button>
+              <button
+                type="button"
+                style={{ ...buttonStyle, backgroundColor: "#7c3aed" }}
+                onClick={() => exportScheduleCsv(scheduleResult?.assignments)}
+                disabled={!scheduleResult?.assignments?.length}
+              >
+                Export CSV
+              </button>
+            </form>
+
+            {scheduleResult?.assignments?.length ? (
+              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                    <th style={{ padding: "10px" }}>Class</th>
+                    <th style={{ padding: "10px" }}>Course</th>
+                    <th style={{ padding: "10px" }}>Professor</th>
+                    <th style={{ padding: "10px" }}>Day</th>
+                    <th style={{ padding: "10px" }}>Start</th>
+                    <th style={{ padding: "10px" }}>End</th>
+                    <th style={{ padding: "10px" }}>Room</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduleResult.assignments.map((a, idx) => (
+                    <tr key={`${a.class_id}-${idx}`} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "10px" }}>{a.class_id}</td>
+                      <td style={{ padding: "10px" }}>{a.course_code}</td>
+                      <td style={{ padding: "10px" }}>{a.professor_name || a.professor_id || "-"}</td>
+                      <td style={{ padding: "10px" }}>{a.day}</td>
+                      <td style={{ padding: "10px" }}>{a.start}</td>
+                      <td style={{ padding: "10px" }}>{a.end}</td>
+                      <td style={{ padding: "10px" }}>{a.room_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ marginTop: 10, color: "#6b7280" }}>No schedule generated yet.</div>
+            )}
+
+            {scheduleResult?.conflicts?.length ? (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>Conflict Report</div>
+                <div style={{ marginBottom: 6, fontSize: 13 }}>
+                  {Object.entries(conflictSummary(scheduleResult.conflicts)).map(([k, v]) => (
+                    <span key={k} style={{ marginRight: 10 }}>
+                      {k}: {v}
+                    </span>
+                  ))}
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  {scheduleResult.conflicts.slice(0, 20).map((c, idx) => (
+                    <li key={idx} style={{ marginBottom: 4 }}>
+                      {c.type} {c.class_id ? `for class ${c.class_id}` : ""} {c.key ? `(${c.key})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {(() => {
+              const gridData = buildScheduleGrid();
+              if (!gridData) return null;
+              return (
+                <div style={{ marginTop: 12, border: "1px solid #d1d5db", overflowX: "auto" }}>
+                  <table style={{ borderCollapse: "collapse", minWidth: 900, width: "100%" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ border: "1px solid #9ca3af", padding: "8px", background: "#dbeafe" }}>
+                          Day / Time
+                        </th>
+                        {gridData.slotLabels.map((s) => (
+                          <th
+                            key={s.key}
+                            style={{ border: "1px solid #9ca3af", padding: "6px", background: "#dbeafe", fontSize: 12 }}
+                          >
+                            {s.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gridData.days.map((day) => (
+                        <tr key={day}>
+                          <td style={{ border: "1px solid #9ca3af", padding: "8px", fontWeight: 900 }}>
+                            {day}
+                          </td>
+                          {gridData.slotLabels.map((slot) => {
+                            const entries = gridData.grid.get(`${day}_${slot.start}_${slot.end}`) || [];
+                            return (
+                              <td key={`${day}-${slot.key}`} style={{ border: "1px solid #9ca3af", padding: "6px", fontSize: 12 }}>
+                                {entries.map((a) => (
+                                  <div key={`${a.class_id}-${a.start}`} style={{ marginBottom: 4 }}>
+                                    <div style={{ fontWeight: 900 }}>{a.course_code}</div>
+                                    <div>{a.room_name}</div>
+                                    <div>{a.professor_name || a.professor_id || "-"}</div>
+                                  </div>
+                                ))}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div>
+            <h3 style={{ marginBottom: 8 }}>Schedule History</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                  <th style={{ padding: "10px" }}>Run ID</th>
+                  <th style={{ padding: "10px" }}>Created</th>
+                  <th style={{ padding: "10px" }}>Semester</th>
+                  <th style={{ padding: "10px" }}>Year</th>
+                  <th style={{ padding: "10px" }}>Score</th>
+                  <th style={{ padding: "10px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scheduleRuns.map((r) => (
+                  <tr key={r.run_id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "10px" }}>{r.run_id}</td>
+                    <td style={{ padding: "10px" }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</td>
+                    <td style={{ padding: "10px" }}>{r.semester || "-"}</td>
+                    <td style={{ padding: "10px" }}>{r.year || "-"}</td>
+                    <td style={{ padding: "10px" }}>{r.best_score}</td>
+                    <td style={{ padding: "10px" }}>
+                      <button
+                        type="button"
+                        style={buttonStyle}
+                        onClick={() => handleApplyRun(r.run_id)}
+                      >
+                        Apply
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {scheduleRuns.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                      No schedule runs yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );
