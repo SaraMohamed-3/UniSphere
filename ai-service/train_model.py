@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -9,9 +10,11 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from xgboost import XGBClassifier
 
 # Load datasets
-student_info = pd.read_csv("studentInfo.csv")
-student_vle = pd.read_csv("studentVle.csv")
-student_assessment = pd.read_csv("studentAssessment.csv")
+base_dir = os.path.dirname(__file__)
+
+student_info = pd.read_csv(os.path.join(base_dir, "studentInfo.csv"))
+student_vle = pd.read_csv(os.path.join(base_dir, "studentVle.csv"))
+student_assessment = pd.read_csv(os.path.join(base_dir, "studentAssessment.csv"))
 
 # Create total clicks per student
 clicks = student_vle.groupby("id_student", as_index=False)["sum_click"].sum()
