@@ -56,3 +56,10 @@ Add Redis (or in‑memory cache) for:
 1. Add indexes for dashboards and scheduler history queries.
 2. Add basic caching for dashboard payloads.
 3. Restrict GA scheduler to admin only (already enforced) and consider async job queue for large datasets.
+
+## Main Points 
+- **Biggest risk today:** single Node process + heavy dashboard reads.
+- **Tradeoff:** simple monolith is fast to build; scaling requires caching, indexes, and background jobs.
+- **GA impact:** CPU‑heavy runs should not block API; queue + results endpoint is the clean fix.
+- **Why focus on indexes:** low effort, immediate gains for join-heavy queries.
+- **Deployment strategy:** start single instance, then scale horizontally behind a proxy if load grows.

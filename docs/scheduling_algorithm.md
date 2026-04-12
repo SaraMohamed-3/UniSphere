@@ -106,7 +106,3 @@ We also compute counts for reporting:
 
 These counts help explain why a run score is low.
 
-## Notes
-- This GA is **heuristic** (good schedules quickly, not guaranteed optimal).
-- Hard constraints are enforced via heavy penalties (e.g., +1000).
-- The best schedule is saved in `schedule_runs` with assignments for rollback.
