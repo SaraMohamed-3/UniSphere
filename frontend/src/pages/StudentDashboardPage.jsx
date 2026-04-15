@@ -23,6 +23,7 @@ export default function StudentDashboardPage() {
   const nav = useNavigate();
   const token = localStorage.getItem("token");
   const [err, setErr] = useState("");
+  const [activeFlags, setActiveFlags] = useState(0);
   const [data, setData] = useState({
     header: { title: "Student Portal", subtitle: "" },
     stats: [],
@@ -37,6 +38,13 @@ export default function StudentDashboardPage() {
       })
       .then((res) => setData((prev) => ({ ...prev, ...res.data })))
       .catch((e) => setErr(e.response?.data?.message || e.message));
+
+    api
+      .get("/academic-monitoring/my-flags", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => setActiveFlags(Number(res.data?.activeCount || 0)))
+      .catch(() => setActiveFlags(0));
   }, [token]);
 
   function goQuickAction(key) {
@@ -44,6 +52,7 @@ export default function StudentDashboardPage() {
     if (key === "grades") nav("/student/grades");
     if (key === "exams") nav("/student/exams");
     if (key === "transcript") nav("/student/transcript");
+    if (key === "academic-status") nav("/student/academic-status");
   }
 
   if (err) return <div style={{ padding: 20, color: "crimson" }}>{err}</div>;
@@ -82,6 +91,43 @@ export default function StudentDashboardPage() {
             </Card>
           ))}
         </div>
+
+        {activeFlags > 0 ? (
+          <Card>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 900, color: "#b91c1c", marginBottom: 6 }}>
+                  Academic monitoring is active on your account
+                </div>
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  {activeFlags} active flag{activeFlags > 1 ? "s" : ""} need your attention.
+                </div>
+              </div>
+              <button
+                onClick={() => nav("/student/academic-status")}
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#dc2626",
+                  color: "#fff",
+                  padding: "10px 16px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                View Academic Status
+              </button>
+            </div>
+          </Card>
+        ) : null}
 
         <Card>
           <div style={{ fontWeight: 900, marginBottom: 12 }}>Quick Actions</div>

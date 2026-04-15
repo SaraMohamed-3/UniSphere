@@ -45,6 +45,25 @@ async function resolveProfessorId(maybeId) {
   return r.rows[0]?.professor_id ?? null;
 }
 
+async function ensurePrerequisitesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS prerequisites (
+      prerequisite_id SERIAL PRIMARY KEY,
+      course_id INT NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
+      required_course_id INT NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (course_id, required_course_id),
+      CHECK (course_id <> required_course_id)
+    )
+  `);
+  await db.query(
+    "CREATE INDEX IF NOT EXISTS idx_prerequisites_course_id ON prerequisites(course_id)",
+  );
+  await db.query(
+    "CREATE INDEX IF NOT EXISTS idx_prerequisites_required_course_id ON prerequisites(required_course_id)",
+  );
+}
+
 /* =========================================================
    📊 ADMIN DASHBOARD
    GET /api/admin/dashboard
@@ -381,7 +400,34 @@ router.put("/users/:id/toggle", verifyJWT, adminOnly, async (req, res) => {
 ========================================================= */
 router.get("/courses", verifyJWT, adminOnly, async (req, res) => {
   try {
-    const result = await db.query("SELECT course_id, name, code FROM courses ORDER BY course_id ASC");
+    await ensurePrerequisitesTable();
+    const result = await db.query(
+      `
+      SELECT
+        c.course_id,
+        c.name,
+        c.code,
+        c.department_id,
+        COALESCE(c.credits, c.credit_hours, 3) AS credits,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'prerequisite_id', p.prerequisite_id,
+              'required_course_id', rc.course_id,
+              'required_course_code', rc.code,
+              'required_course_name', rc.name
+            )
+            ORDER BY rc.code
+          ) FILTER (WHERE p.prerequisite_id IS NOT NULL),
+          '[]'::json
+        ) AS prerequisites
+      FROM courses c
+      LEFT JOIN prerequisites p ON p.course_id = c.course_id
+      LEFT JOIN courses rc ON rc.course_id = p.required_course_id
+      GROUP BY c.course_id, c.name, c.code, c.department_id, c.credits, c.credit_hours
+      ORDER BY c.course_id ASC
+      `,
+    );
     res.json(result.rows);
   } catch (err) { console.error(err); res.status(500).json({ message: err.message }); }
 });
@@ -389,12 +435,106 @@ router.get("/courses", verifyJWT, adminOnly, async (req, res) => {
 router.post("/courses", verifyJWT, adminOnly, async (req, res) => {
   try {
     const { name, code, department_id } = req.body;
+    const credits = Number(req.body?.credits ?? req.body?.credit_hours ?? 3);
     const result = await db.query(
-      "INSERT INTO courses (name, code, department_id) VALUES ($1,$2,$3) RETURNING *",
-      [name, code, department_id]
+      "INSERT INTO courses (name, code, department_id, credits, credit_hours) VALUES ($1,$2,$3,$4,$4) RETURNING *",
+      [name, code, department_id, credits]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ message: err.message }); }
+});
+
+router.get("/course-prerequisites", verifyJWT, adminOnly, async (req, res) => {
+  try {
+    await ensurePrerequisitesTable();
+    const result = await db.query(`
+      SELECT
+        p.prerequisite_id,
+        p.course_id,
+        c.code AS course_code,
+        c.name AS course_name,
+        p.required_course_id,
+        rc.code AS required_course_code,
+        rc.name AS required_course_name
+      FROM prerequisites p
+      JOIN courses c ON c.course_id = p.course_id
+      JOIN courses rc ON rc.course_id = p.required_course_id
+      ORDER BY c.code ASC, rc.code ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/courses/:courseId/prerequisites", verifyJWT, adminOnly, async (req, res) => {
+  try {
+    await ensurePrerequisitesTable();
+
+    const courseId = Number(req.params.courseId);
+    const rawIds = Array.isArray(req.body?.required_course_ids) ? req.body.required_course_ids : [];
+    const requiredCourseIds = [...new Set(rawIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+
+    if (!Number.isInteger(courseId) || courseId <= 0) {
+      return res.status(400).json({ message: "Valid courseId is required" });
+    }
+    if (requiredCourseIds.includes(courseId)) {
+      return res.status(400).json({ message: "A course cannot be a prerequisite of itself" });
+    }
+
+    const courseCheck = await db.query(
+      "SELECT course_id FROM courses WHERE course_id = $1 LIMIT 1",
+      [courseId],
+    );
+    if (!courseCheck.rows.length) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    if (requiredCourseIds.length) {
+      const requiredCheck = await db.query(
+        "SELECT course_id FROM courses WHERE course_id = ANY($1::int[])",
+        [requiredCourseIds],
+      );
+      if (requiredCheck.rows.length !== requiredCourseIds.length) {
+        return res.status(400).json({ message: "One or more prerequisite courses do not exist" });
+      }
+    }
+
+    await db.query("DELETE FROM prerequisites WHERE course_id = $1", [courseId]);
+    for (const requiredCourseId of requiredCourseIds) {
+      await db.query(
+        `
+        INSERT INTO prerequisites (course_id, required_course_id)
+        VALUES ($1, $2)
+        ON CONFLICT (course_id, required_course_id) DO NOTHING
+        `,
+        [courseId, requiredCourseId],
+      );
+    }
+
+    const result = await db.query(`
+      SELECT
+        p.prerequisite_id,
+        p.course_id,
+        p.required_course_id,
+        rc.code AS required_course_code,
+        rc.name AS required_course_name
+      FROM prerequisites p
+      JOIN courses rc ON rc.course_id = p.required_course_id
+      WHERE p.course_id = $1
+      ORDER BY rc.code ASC
+    `, [courseId]);
+
+    res.json({
+      message: "Course prerequisites updated",
+      course_id: courseId,
+      prerequisites: result.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
 });
 
 /* =========================================================
@@ -825,6 +965,121 @@ router.delete("/registration-windows/:id", verifyJWT, adminOnly, async (req, res
     }
     res.json({ message: "Registration window deleted" });
   } catch (err) { console.error(err); res.status(500).json({ message: err.message }); }
+});
+
+router.get("/registration-load-policy", verifyJWT, adminOnly, async (req, res) => {
+  try {
+    const hasPolicy = await tableExists("registration_load_policies");
+    if (!hasPolicy) {
+      return res.status(400).json({
+        message: "Registration load policy schema not initialized. Run migration 012_registration_load_policy.sql",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        policy_id,
+        halfload_gpa_threshold,
+        halfload_max_credits,
+        regular_max_credits,
+        overload_gpa_threshold,
+        overload_max_credits,
+        updated_at
+      FROM registration_load_policies
+      ORDER BY policy_id DESC
+      LIMIT 1
+      `,
+    );
+
+    res.json(result.rows[0] || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/registration-load-policy", verifyJWT, adminOnly, async (req, res) => {
+  try {
+    const hasPolicy = await tableExists("registration_load_policies");
+    if (!hasPolicy) {
+      return res.status(400).json({
+        message: "Registration load policy schema not initialized. Run migration 012_registration_load_policy.sql",
+      });
+    }
+
+    const halfloadGpaThreshold = Number(req.body?.halfload_gpa_threshold);
+    const halfloadMaxCredits = Number(req.body?.halfload_max_credits);
+    const regularMaxCredits = Number(req.body?.regular_max_credits);
+    const overloadGpaThreshold = Number(req.body?.overload_gpa_threshold);
+    const overloadMaxCredits = Number(req.body?.overload_max_credits);
+    const updatedBy = req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+
+    if (
+      !Number.isFinite(halfloadGpaThreshold) ||
+      !Number.isFinite(overloadGpaThreshold) ||
+      halfloadGpaThreshold < 0 ||
+      overloadGpaThreshold < 0 ||
+      halfloadGpaThreshold > 4 ||
+      overloadGpaThreshold > 4
+    ) {
+      return res.status(400).json({ message: "GPA thresholds must be between 0.00 and 4.00" });
+    }
+
+    if (
+      !Number.isInteger(halfloadMaxCredits) ||
+      !Number.isInteger(regularMaxCredits) ||
+      !Number.isInteger(overloadMaxCredits) ||
+      halfloadMaxCredits <= 0 ||
+      regularMaxCredits < halfloadMaxCredits ||
+      overloadMaxCredits < regularMaxCredits
+    ) {
+      return res.status(400).json({
+        message: "Credit limits must be positive integers and satisfy halfload <= regular <= overload",
+      });
+    }
+
+    if (overloadGpaThreshold < halfloadGpaThreshold) {
+      return res.status(400).json({
+        message: "The overload GPA threshold must be greater than or equal to the halfload threshold",
+      });
+    }
+
+    const result = await db.query(
+      `
+      INSERT INTO registration_load_policies (
+        halfload_gpa_threshold,
+        halfload_max_credits,
+        regular_max_credits,
+        overload_gpa_threshold,
+        overload_max_credits,
+        updated_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING
+        policy_id,
+        halfload_gpa_threshold,
+        halfload_max_credits,
+        regular_max_credits,
+        overload_gpa_threshold,
+        overload_max_credits,
+        updated_at
+      `,
+      [
+        halfloadGpaThreshold,
+        halfloadMaxCredits,
+        regularMaxCredits,
+        overloadGpaThreshold,
+        overloadMaxCredits,
+        updatedBy,
+      ],
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;
