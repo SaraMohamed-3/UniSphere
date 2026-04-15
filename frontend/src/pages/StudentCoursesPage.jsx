@@ -33,6 +33,13 @@ function Table({ columns, rows, emptyText = "No data." }) {
   );
 }
 
+function formatPrerequisiteList(items) {
+  if (!items || items.length === 0) return "None";
+  return items
+    .map((item) => item.required_course_code || item.required_course_name)
+    .join(", ");
+}
+
 export default function StudentCoursesPage() {
   const token = localStorage.getItem("token");
   const [loading, setLoading] = useState(true);
@@ -41,6 +48,7 @@ export default function StudentCoursesPage() {
   const [ok, setOk] = useState("");
   const [myCourses, setMyCourses] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [loadPolicy, setLoadPolicy] = useState(null);
   const [myCoursesView, setMyCoursesView] = useState("detailed");
   const [profile, setProfile] = useState(null);
 
@@ -59,8 +67,9 @@ export default function StudentCoursesPage() {
         }),
       ])
       .then(([myRes, catalogRes, profileRes]) => {
-        setMyCourses(myRes.data || []);
-        setCatalog(catalogRes.data || []);
+        setMyCourses(myRes.data?.classes || []);
+        setCatalog(catalogRes.data?.classes || []);
+        setLoadPolicy(catalogRes.data?.loadPolicy || myRes.data?.loadPolicy || null);
         setProfile(profileRes.data || null);
       })
       .catch((e) => setErr(e.response?.data?.message || e.message))
@@ -265,6 +274,27 @@ export default function StudentCoursesPage() {
         </div>
         {err ? <div style={{ marginBottom: 10, color: "crimson", fontWeight: 700 }}>{err}</div> : null}
         {ok ? <div style={{ marginBottom: 10, color: "#0f766e", fontWeight: 700 }}>{ok}</div> : null}
+        {loadPolicy ? (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 14,
+              borderRadius: 12,
+              border: "1px solid #dbeafe",
+              background: "#f8fbff",
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div style={{ fontWeight: 900, color: "#1e3a8a" }}>
+              Registration Load Status: {String(loadPolicy.band || "regular").toUpperCase()}
+            </div>
+            <div style={{ fontSize: 13, color: "#374151" }}>
+              GPA: {Number(loadPolicy.currentGpa || 0).toFixed(2)} | Registered: {Number(loadPolicy.registeredCredits || 0)} credit hours | Limit: {Number(loadPolicy.maxCredits || 0)} | Remaining: {Number(loadPolicy.remainingCredits || 0)}
+            </div>
+            <div style={{ fontSize: 13, color: "#6b7280" }}>{loadPolicy.message}</div>
+          </div>
+        ) : null}
         {myCoursesView === "detailed" ? (
           <Table
             rows={myCourses}
@@ -472,6 +502,17 @@ export default function StudentCoursesPage() {
             { key: "year", label: "Year" },
             { key: "section", label: "Section" },
             { key: "credits", label: "Credits" },
+            {
+              key: "prerequisites",
+              label: "Prerequisites",
+              render: (r) => {
+                if (!r.prerequisites?.length) return "None";
+                if (r.prerequisites_satisfied) {
+                  return `Met: ${formatPrerequisiteList(r.prerequisites)}`;
+                }
+                return `Missing: ${formatPrerequisiteList(r.missing_prerequisites)}`;
+              },
+            },
             { key: "day", label: "Day" },
             {
               key: "time",
@@ -489,14 +530,25 @@ export default function StudentCoursesPage() {
               key: "actions",
               label: "Actions",
               render: (r) => {
-                const disabled = working || r.is_registered || r.is_full || !r.registration_open;
+                const hasMissingPrerequisites = !r.prerequisites_satisfied;
+                const disabled =
+                  working || r.is_registered || r.is_full || !r.registration_open || hasMissingPrerequisites;
                 const label = r.is_registered
                   ? "Registered"
                   : r.is_full
                     ? "Full"
                     : !r.registration_open
                       ? "Closed"
+                      : hasMissingPrerequisites
+                        ? "Locked"
                       : "Register";
+                const title = !r.registration_open
+                  ? r.registration_message || "Registration window is closed"
+                  : hasMissingPrerequisites
+                    ? `Missing prerequisite(s): ${formatPrerequisiteList(r.missing_prerequisites)}`
+                    : r.prerequisites?.length
+                      ? `Required: ${formatPrerequisiteList(r.prerequisites)}`
+                      : "";
                 return (
                   <button
                     disabled={disabled}
@@ -511,7 +563,7 @@ export default function StudentCoursesPage() {
                       cursor: disabled ? "not-allowed" : "pointer",
                       opacity: disabled ? 0.6 : 1,
                     }}
-                    title={!r.registration_open ? r.registration_message || "Registration window is closed" : ""}
+                    title={title}
                   >
                     {label}
                   </button>

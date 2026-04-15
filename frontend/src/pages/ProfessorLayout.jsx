@@ -118,6 +118,12 @@ export default function ProfessorLayout() {
         >
           Reports
         </div>
+        <div
+          style={itemStyle(isActive("/professor/messages"))}
+          onClick={() => nav("/professor/messages")}
+        >
+          Messages
+        </div>
       </aside>
 
       {/* Main */}

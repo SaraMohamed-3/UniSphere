@@ -12,9 +12,12 @@ const verifyJWT = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // MUST include role here if your other middleware uses it!
+    const userId = decoded.user_id;
     req.user = {
-      id: decoded.user_id,
+      id: userId,
+      user_id: userId,
+      userId,
+      email: decoded.email,
       role: decoded.role,
     };
     console.log("Authenticated user:", req.user);
