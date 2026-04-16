@@ -6,6 +6,9 @@ export default function AdminCourseManagement() {
   // Courses
   const [courses, setCourses] = useState([]);
   const [courseForm, setCourseForm] = useState({ name: "", code: "", department_id: "", credit_hours: "" });
+  const [coursePrerequisites, setCoursePrerequisites] = useState([]);
+  const [selectedPrereqCourseId, setSelectedPrereqCourseId] = useState("");
+  const [selectedRequiredCourseIds, setSelectedRequiredCourseIds] = useState([]);
 
   // Classes
   const [classes, setClasses] = useState([]);
@@ -41,6 +44,14 @@ export default function AdminCourseManagement() {
     closes_at: "",
     is_active: true,
   });
+  const [registrationLoadPolicy, setRegistrationLoadPolicy] = useState(null);
+  const [registrationLoadPolicyForm, setRegistrationLoadPolicyForm] = useState({
+    halfload_gpa_threshold: "2.00",
+    halfload_max_credits: "9",
+    regular_max_credits: "18",
+    overload_gpa_threshold: "3.30",
+    overload_max_credits: "21",
+  });
 
   // Scheduler
   const [rooms, setRooms] = useState([]);
@@ -67,6 +78,15 @@ export default function AdminCourseManagement() {
   const fetchCourses = () => {
     api.get("/admin/courses", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
       .then((res) => setCourses(res.data))
+      .catch((err) => console.error(err));
+  };
+
+  const fetchCoursePrerequisites = () => {
+    api
+      .get("/admin/course-prerequisites", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => setCoursePrerequisites(res.data || []))
       .catch((err) => console.error(err));
   };
 
@@ -117,6 +137,26 @@ export default function AdminCourseManagement() {
       .catch((err) => console.error(err));
   };
 
+  const fetchRegistrationLoadPolicy = () => {
+    api
+      .get("/admin/registration-load-policy", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => {
+        setRegistrationLoadPolicy(res.data || null);
+        if (res.data) {
+          setRegistrationLoadPolicyForm({
+            halfload_gpa_threshold: String(res.data.halfload_gpa_threshold ?? "2.00"),
+            halfload_max_credits: String(res.data.halfload_max_credits ?? "9"),
+            regular_max_credits: String(res.data.regular_max_credits ?? "18"),
+            overload_gpa_threshold: String(res.data.overload_gpa_threshold ?? "3.30"),
+            overload_max_credits: String(res.data.overload_max_credits ?? "21"),
+          });
+        }
+      })
+      .catch((err) => console.error(err));
+  };
+
   const fetchSchedulerResources = () => {
     api
       .get("/scheduler/resources", {
@@ -143,12 +183,14 @@ export default function AdminCourseManagement() {
 
   useEffect(() => {
     fetchCourses();
+    fetchCoursePrerequisites();
     fetchClasses();
     fetchProfessors();
     fetchExams();
     fetchTuitionRules();
     fetchFeeComponents();
     fetchRegistrationWindows();
+    fetchRegistrationLoadPolicy();
     fetchSchedulerResources();
     fetchScheduleRuns();
   }, []);
@@ -306,6 +348,58 @@ const handleExamSubmit = (e) => {
       .then(() => {
         alert("Registration window deleted");
         fetchRegistrationWindows();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  const handlePrerequisiteToggle = (requiredCourseId) => {
+    setSelectedRequiredCourseIds((prev) =>
+      prev.includes(requiredCourseId)
+        ? prev.filter((id) => id !== requiredCourseId)
+        : [...prev, requiredCourseId],
+    );
+  };
+
+  const handleSavePrerequisites = () => {
+    if (!selectedPrereqCourseId) {
+      alert("Select a course first");
+      return;
+    }
+
+    api
+      .put(
+        `/admin/courses/${selectedPrereqCourseId}/prerequisites`,
+        { required_course_ids: selectedRequiredCourseIds },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+      )
+      .then(() => {
+        alert("Prerequisites updated");
+        fetchCourses();
+        fetchCoursePrerequisites();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
+  };
+
+  useEffect(() => {
+    if (!selectedPrereqCourseId) {
+      setSelectedRequiredCourseIds([]);
+      return;
+    }
+    const nextIds = coursePrerequisites
+      .filter((item) => Number(item.course_id) === Number(selectedPrereqCourseId))
+      .map((item) => Number(item.required_course_id));
+    setSelectedRequiredCourseIds(nextIds);
+  }, [selectedPrereqCourseId, coursePrerequisites]);
+
+  const handleRegistrationLoadPolicySubmit = (e) => {
+    e.preventDefault();
+    api
+      .post("/admin/registration-load-policy", registrationLoadPolicyForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Registration load policy saved");
+        fetchRegistrationLoadPolicy();
       })
       .catch((err) => alert(err.response?.data?.message || err.message));
   };
@@ -558,6 +652,99 @@ const handleExamSubmit = (e) => {
           <input type="number" placeholder="Credit Hours" value={courseForm.credit_hours} onChange={e => setCourseForm({...courseForm, credit_hours: e.target.value})} style={inputStyle} required/>
           <button type="submit" style={buttonStyle}>Create</button>
         </form>
+      </div>
+
+      <div style={sectionStyle}>
+        <h2 style={{ marginBottom: 15 }}>Course Prerequisites</h2>
+        <p style={{ marginTop: 0, marginBottom: 12, color: "#666" }}>
+          Choose a course, then mark the courses students must complete before registering.
+        </p>
+
+        <div style={{ display: "grid", gap: 14 }}>
+          <select
+            value={selectedPrereqCourseId}
+            onChange={(e) => setSelectedPrereqCourseId(e.target.value)}
+            style={{ ...inputStyle, maxWidth: 420 }}
+          >
+            <option value="">Select Course</option>
+            {courses.map((course) => (
+              <option key={course.course_id} value={course.course_id}>
+                {course.code} - {course.name}
+              </option>
+            ))}
+          </select>
+
+          {selectedPrereqCourseId ? (
+            <div
+              style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: 10,
+                padding: 14,
+                maxHeight: 260,
+                overflowY: "auto",
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              {courses
+                .filter((course) => Number(course.course_id) !== Number(selectedPrereqCourseId))
+                .map((course) => (
+                  <label
+                    key={course.course_id}
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRequiredCourseIds.includes(Number(course.course_id))}
+                      onChange={() => handlePrerequisiteToggle(Number(course.course_id))}
+                    />
+                    {course.code} - {course.name}
+                  </label>
+                ))}
+            </div>
+          ) : null}
+
+          <div>
+            <button
+              type="button"
+              style={buttonStyle}
+              onClick={handleSavePrerequisites}
+              disabled={!selectedPrereqCourseId}
+            >
+              Save Prerequisites
+            </button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+                <th style={{ padding: "10px" }}>Course</th>
+                <th style={{ padding: "10px" }}>Prerequisites</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses.map((course) => {
+                const prerequisites = coursePrerequisites.filter(
+                  (item) => Number(item.course_id) === Number(course.course_id),
+                );
+                return (
+                  <tr key={course.course_id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "10px", fontWeight: 700 }}>
+                      {course.code} - {course.name}
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      {prerequisites.length
+                        ? prerequisites
+                            .map((item) => item.required_course_code || item.required_course_name)
+                            .join(", ")
+                        : "None"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* --- CREATE CLASS --- */}
@@ -929,6 +1116,99 @@ const handleExamSubmit = (e) => {
         </table>
       </div>
 
+      <div style={sectionStyle}>
+        <h2 style={{ marginBottom: 15 }}>Registration Load Policy</h2>
+        <p style={{ marginTop: 0, marginBottom: 12, color: "#666" }}>
+          Configure halfload and overload credit-hour limits based on cumulative GPA.
+        </p>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}
+          onSubmit={handleRegistrationLoadPolicySubmit}
+        >
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Halfload GPA threshold"
+            value={registrationLoadPolicyForm.halfload_gpa_threshold}
+            onChange={(e) =>
+              setRegistrationLoadPolicyForm({
+                ...registrationLoadPolicyForm,
+                halfload_gpa_threshold: e.target.value,
+              })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Halfload max credits"
+            value={registrationLoadPolicyForm.halfload_max_credits}
+            onChange={(e) =>
+              setRegistrationLoadPolicyForm({
+                ...registrationLoadPolicyForm,
+                halfload_max_credits: e.target.value,
+              })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Regular max credits"
+            value={registrationLoadPolicyForm.regular_max_credits}
+            onChange={(e) =>
+              setRegistrationLoadPolicyForm({
+                ...registrationLoadPolicyForm,
+                regular_max_credits: e.target.value,
+              })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Overload GPA threshold"
+            value={registrationLoadPolicyForm.overload_gpa_threshold}
+            onChange={(e) =>
+              setRegistrationLoadPolicyForm({
+                ...registrationLoadPolicyForm,
+                overload_gpa_threshold: e.target.value,
+              })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Overload max credits"
+            value={registrationLoadPolicyForm.overload_max_credits}
+            onChange={(e) =>
+              setRegistrationLoadPolicyForm({
+                ...registrationLoadPolicyForm,
+                overload_max_credits: e.target.value,
+              })
+            }
+            style={inputStyle}
+            required
+          />
+          <button type="submit" style={buttonStyle}>Save Policy</button>
+        </form>
+
+        <div style={{ marginTop: 12, color: "#374151", fontSize: 14 }}>
+          {registrationLoadPolicy ? (
+            <>
+              Current policy:
+              {` GPA < ${registrationLoadPolicy.halfload_gpa_threshold} => max ${registrationLoadPolicy.halfload_max_credits} credits | `}
+              {`regular max ${registrationLoadPolicy.regular_max_credits} credits | `}
+              {`GPA >= ${registrationLoadPolicy.overload_gpa_threshold} => max ${registrationLoadPolicy.overload_max_credits} credits`}
+            </>
+          ) : (
+            "No registration load policy found yet."
+          )}
+        </div>
+      </div>
+  
       {/* --- TIMETABLE GA SCHEDULER --- */}
       <div style={sectionStyle}>
         <h2 style={{ marginBottom: 15 }}>Timetable GA Scheduler</h2>
