@@ -1,5 +1,25 @@
 const db = require("../../data/db");
 
+async function ensurePrerequisitesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS prerequisites (
+      prerequisite_id SERIAL PRIMARY KEY,
+      course_id INT NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
+      required_course_id INT NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (course_id, required_course_id),
+      CHECK (course_id <> required_course_id)
+    )
+  `);
+
+  await db.query(
+    "CREATE INDEX IF NOT EXISTS idx_prerequisites_course_id ON prerequisites(course_id)",
+  );
+  await db.query(
+    "CREATE INDEX IF NOT EXISTS idx_prerequisites_required_course_id ON prerequisites(required_course_id)",
+  );
+}
+
 async function getClassById(classId) {
   const r = await db.query(
     `
@@ -17,7 +37,7 @@ async function getClassById(classId) {
       c.location,
       co.code AS course_code,
       co.name AS course_name,
-      COALESCE(co.credits, 3) AS credits
+      COALESCE(co.credits, co.credit_hours, 3) AS credits
     FROM classes c
     JOIN courses co ON co.course_id = c.course_id
     WHERE c.class_id = $1
@@ -129,7 +149,7 @@ async function getRegisteredClasses(studentId, { semester, year } = {}) {
       c.location,
       co.code AS course_code,
       co.name AS course_name,
-      COALESCE(co.credits, 3) AS credits
+      COALESCE(co.credits, co.credit_hours, 3) AS credits
     FROM enrollments e
     JOIN classes c ON c.class_id = e.class_id
     JOIN courses co ON co.course_id = c.course_id
@@ -169,9 +189,10 @@ async function getCatalog(studentId, departmentId, { semester, year } = {}) {
       c.time_end,
       c.location,
       c.max_capacity,
+      co.course_id,
       co.code AS course_code,
       co.name AS course_name,
-      COALESCE(co.credits, 3) AS credits,
+      COALESCE(co.credits, co.credit_hours, 3) AS credits,
       COUNT(e2.enrollment_id)::int AS enrolled_count,
       CASE WHEN es.enrollment_id IS NULL THEN FALSE ELSE TRUE END AS is_registered
     FROM classes c
@@ -181,12 +202,150 @@ async function getCatalog(studentId, departmentId, { semester, year } = {}) {
     WHERE ${filters.join(" AND ")}
     GROUP BY
       c.class_id, c.semester, c.year, c.section, c.day, c.time_start, c.time_end, c.location, c.max_capacity,
-      co.code, co.name, co.credits, es.enrollment_id
+      co.course_id, co.code, co.name, co.credits, co.credit_hours, es.enrollment_id
     ORDER BY c.year DESC NULLS LAST, c.semester DESC, co.code ASC
     `,
     params,
   );
   return r.rows;
+}
+
+async function getPrerequisitesForCourseIds(courseIds) {
+  await ensurePrerequisitesTable();
+  if (!courseIds?.length) return [];
+  const uniqueIds = [...new Set(courseIds.map((id) => Number(id)).filter(Boolean))];
+  if (!uniqueIds.length) return [];
+
+  const r = await db.query(
+    `
+    SELECT
+      p.prerequisite_id,
+      p.course_id,
+      p.required_course_id,
+      required.code AS required_course_code,
+      required.name AS required_course_name
+    FROM prerequisites p
+    JOIN courses required ON required.course_id = p.required_course_id
+    WHERE p.course_id = ANY($1::int[])
+    ORDER BY p.course_id ASC, required.code ASC
+    `,
+    [uniqueIds],
+  );
+  return r.rows;
+}
+
+async function getCompletedCourseIds(studentId) {
+  const r = await db.query(
+    `
+    WITH course_results AS (
+      SELECT
+        c.course_id,
+        COUNT(g.grade_id)::int AS graded_items,
+        COALESCE(
+          ROUND(AVG((g.score::numeric / NULLIF(g.max_score, 0)) * 100), 2),
+          0
+        ) AS avg_percent
+      FROM enrollments e
+      JOIN classes c ON c.class_id = e.class_id
+      LEFT JOIN grades g ON g.enrollment_id = e.enrollment_id
+      WHERE e.student_id = $1
+      GROUP BY c.course_id, e.enrollment_id
+    )
+    SELECT DISTINCT course_id
+    FROM course_results
+    WHERE graded_items > 0
+      AND avg_percent >= 60
+    `,
+    [studentId],
+  );
+  return r.rows.map((row) => Number(row.course_id));
+}
+
+async function getRegistrationLoadPolicy() {
+  const r = await db.query(
+    `
+    SELECT
+      policy_id,
+      halfload_gpa_threshold,
+      halfload_max_credits,
+      regular_max_credits,
+      overload_gpa_threshold,
+      overload_max_credits,
+      updated_at
+    FROM registration_load_policies
+    ORDER BY policy_id DESC
+    LIMIT 1
+    `,
+  );
+  return r.rows[0] || null;
+}
+
+async function getStudentGpa(studentId) {
+  const r = await db.query(
+    `
+    WITH course_grades AS (
+      SELECT
+        e.enrollment_id,
+        COALESCE(co.credits, co.credit_hours, 3) AS credits,
+        COUNT(g.grade_id)::int AS graded_items,
+        COALESCE(
+          ROUND(AVG((g.score::numeric / NULLIF(g.max_score, 0)) * 100), 2),
+          0
+        ) AS avg_percent
+      FROM enrollments e
+      JOIN classes c ON c.class_id = e.class_id
+      JOIN courses co ON co.course_id = c.course_id
+      LEFT JOIN grades g ON g.enrollment_id = e.enrollment_id
+      WHERE e.student_id = $1
+      GROUP BY e.enrollment_id, co.credits, co.credit_hours
+    )
+    SELECT
+      COALESCE(
+        ROUND(
+          SUM(
+            CASE
+              WHEN graded_items = 0 THEN 0
+              WHEN avg_percent >= 93 THEN 4.0 * credits
+              WHEN avg_percent >= 90 THEN 3.7 * credits
+              WHEN avg_percent >= 87 THEN 3.3 * credits
+              WHEN avg_percent >= 83 THEN 3.0 * credits
+              WHEN avg_percent >= 80 THEN 2.7 * credits
+              WHEN avg_percent >= 77 THEN 2.3 * credits
+              WHEN avg_percent >= 73 THEN 2.0 * credits
+              WHEN avg_percent >= 70 THEN 1.7 * credits
+              WHEN avg_percent >= 67 THEN 1.3 * credits
+              WHEN avg_percent >= 63 THEN 1.0 * credits
+              WHEN avg_percent >= 60 THEN 0.7 * credits
+              ELSE 0
+            END
+          ) / NULLIF(SUM(CASE WHEN graded_items = 0 THEN 0 ELSE credits END), 0),
+        2),
+      0) AS cumulative_gpa,
+      COALESCE(SUM(CASE WHEN graded_items = 0 THEN 0 ELSE credits END), 0)::int AS completed_credits
+    FROM course_grades
+    `,
+    [studentId],
+  );
+  return {
+    cumulative_gpa: Number(r.rows[0]?.cumulative_gpa || 0),
+    completed_credits: Number(r.rows[0]?.completed_credits || 0),
+  };
+}
+
+async function getRegisteredCredits(studentId, semester, year) {
+  const r = await db.query(
+    `
+    SELECT COALESCE(SUM(COALESCE(co.credits, co.credit_hours, 3)), 0)::int AS total_credits
+    FROM enrollments e
+    JOIN classes c ON c.class_id = e.class_id
+    JOIN courses co ON co.course_id = c.course_id
+    WHERE e.student_id = $1
+      AND LOWER(c.semester) = LOWER($2)
+      AND c.year = $3
+    `,
+    [studentId, semester, Number(year)],
+  );
+  return Number(r.rows[0]?.total_credits || 0);
 }
 
 async function createEnrollment(studentId, classId) {
@@ -214,6 +373,7 @@ async function deleteEnrollment(studentId, classId) {
 }
 
 module.exports = {
+  ensurePrerequisitesTable,
   getClassById,
   countEnrollments,
   getEnrollment,
@@ -222,6 +382,11 @@ module.exports = {
   getRegistrationWindow,
   getRegisteredClasses,
   getCatalog,
+  getPrerequisitesForCourseIds,
+  getCompletedCourseIds,
+  getRegistrationLoadPolicy,
+  getStudentGpa,
+  getRegisteredCredits,
   createEnrollment,
   deleteEnrollment,
 };

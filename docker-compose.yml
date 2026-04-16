@@ -15,6 +15,15 @@ services:
       - ./backend/migrations/001_announcements.sql:/docker-entrypoint-initdb.d/02_announcements.sql
       - ./backend/migrations/002_professor_features.sql:/docker-entrypoint-initdb.d/03_professor_features.sql
       - ./backend/data/admin_features.sql:/docker-entrypoint-initdb.d/04_admin_features.sql
+      - ./backend/migrations/006_add_users_full_name.sql:/docker-entrypoint-initdb.d/05_full_name.sql
+      - ./backend/migrations/009_academic_monitoring.sql:/docker-entrypoint-initdb.d/06_academic_monitoring.sql
+      - ./backend/migrations/010_messaging.sql:/docker-entrypoint-initdb.d/07_messaging.sql
+      - ./backend/migrations/011_notifications.sql:/docker-entrypoint-initdb.d/08_notifications.sql
+      - ./backend/migrations/012_registration_load_policy.sql:/docker-entrypoint-initdb.d/09_registration_load_policy.sql
+      - ./backend/migrations/013_classes_registration_fields.sql:/docker-entrypoint-initdb.d/10_classes_registration_fields.sql
+      - ./backend/migrations/014_courses_credits_compat.sql:/docker-entrypoint-initdb.d/11_courses_credits_compat.sql
+      - ./backend/migrations/015_course_prerequisites.sql:/docker-entrypoint-initdb.d/12_course_prerequisites.sql
+      - ./backend/migrations/016_student_chatbot.sql:/docker-entrypoint-initdb.d/13_student_chatbot.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 10s
@@ -38,6 +47,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-12345}
       DB_NAME: ${DB_NAME:-sis_db}
       JWT_SECRET: ${JWT_SECRET:-my_super_secret_key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.2}
       PORT: 5050
       NODE_ENV: development
     depends_on:

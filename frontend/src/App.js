@@ -17,7 +17,9 @@ import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentExamSchedulePage from "./pages/StudentExamSchedulePage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
 import StudentTranscriptPage from "./pages/StudentTranscriptPage";
+import StudentAssignmentsPage from "./pages/StudentAssignmentsPage";
 import StudentFeesPage from "./pages/StudentFeesPage";
+import StudentChatbotPage from "./pages/StudentChatbotPage";
 import ProfessorPage from "./pages/ProfessorPage";
 import StudentLayout from "./pages/StudentLayout";
 import ProfessorLayout from "./pages/ProfessorLayout";
@@ -29,10 +31,14 @@ import ProfessorClassesPage from "./pages/ProfessorClassesPage";
 import ProfessorGradesPage from "./pages/ProfessorGradesPage";
 import ProfessorAttendancePage from "./pages/ProfessorAttendancePage";
 import ProfessorAnnouncementsPage from "./pages/ProfessorAnnouncementsPage";
+import ProfessorAssignmentsPage from "./pages/ProfessorAssignmentsPage";
 
 import ReportsPage from "./pages/ReportsPage";
 
 import PredictiveAnalyticsPage from "./pages/PredictiveAnalyticsPage";
+import AcademicMonitoringPage from "./pages/AcademicMonitoringPage";
+import MessagingPage from "./pages/MessagingPage";
+import StudentAcademicStatusPage from "./pages/StudentAcademicStatusPage";
 
 function App() {
   return (
@@ -55,15 +61,16 @@ function App() {
           <Route path="courses" element={<AdminCourseManagement />} />
           {/* Admin announcements manager */}
           <Route path="announcements" element={<AdminAnnouncementsPage />} />
-
-          {/* placeholders (optional for now) */}
-          <Route path="courses" element={<div>Courses (later)</div>} />
-          <Route path="messages" element={<div>Messages (later)</div>} />
           <Route path="requests" element={<AdminRequests />} />
           <Route
             path="predictive-analytics"
             element={<PredictiveAnalyticsPage />}
           />
+          <Route
+            path="academic-monitoring"
+            element={<AcademicMonitoringPage />}
+          />
+          <Route path="messages" element={<MessagingPage />} />
         </Route>
 
         {/* STUDENT AREA */}
@@ -87,6 +94,10 @@ function App() {
           <Route path="exams" element={<StudentExamSchedulePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />
           <Route path="transcript" element={<StudentTranscriptPage />} />
+          <Route path="assignments" element={<StudentAssignmentsPage />} />
+          <Route path="academic-status" element={<StudentAcademicStatusPage />} />
+          <Route path="assistant" element={<StudentChatbotPage />} />
+          <Route path="messages" element={<MessagingPage />} />
         </Route>
 
         {/* PROFESSOR AREA */}
@@ -104,11 +115,13 @@ function App() {
           <Route path="classes" element={<ProfessorClassesPage />} />
           <Route path="grades" element={<ProfessorGradesPage />} />
           <Route path="attendance" element={<ProfessorAttendancePage />} />
+          <Route path="assignments" element={<ProfessorAssignmentsPage />} />
           <Route
             path="announcements"
             element={<ProfessorAnnouncementsPage />}
           />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="messages" element={<MessagingPage />} />
         </Route>
       </Routes>
     </Router>
