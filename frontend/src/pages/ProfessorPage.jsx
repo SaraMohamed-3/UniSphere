@@ -135,6 +135,7 @@ export default function ProfessorPage() {
                 onClick={() => {
                   if (a.key === "attendance") nav("/professor/attendance");
                   if (a.key === "grades") nav("/professor/grades");
+                  if (a.key === "assignments") nav("/professor/assignments");
                   if (a.key === "announce") nav("/professor/announcements");
                   if (a.key === "students") nav("/professor/classes");
                 }}

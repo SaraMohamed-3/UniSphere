@@ -24,6 +24,16 @@ async function columnExists(tableName, columnName) {
   return !!r.rows[0]?.exists;
 }
 
+async function tableExists(tableName) {
+  const r = await db.query(
+    `
+    SELECT to_regclass($1) IS NOT NULL AS exists
+    `,
+    [`public.${tableName}`],
+  );
+  return !!r.rows[0]?.exists;
+}
+
 async function getStudentContext(req) {
   const userId = getUserId(req);
   if (!userId) return null;
@@ -493,6 +503,164 @@ router.get("/transcript-requests", verifyJWT, studentOnly, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/student/assignments
+router.get("/assignments", verifyJWT, studentOnly, async (req, res) => {
+  try {
+    const ctx = await getStudentContext(req);
+    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+
+    const [assignmentsOk, submissionsOk] = await Promise.all([
+      tableExists("assignments"),
+      tableExists("assignment_submissions"),
+    ]);
+    if (!assignmentsOk || !submissionsOk) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const r = await db.query(
+      `
+      SELECT
+        a.assignment_id,
+        a.title,
+        a.description,
+        a.attachment_url,
+        a.due_at,
+        a.max_points,
+        a.created_at,
+        c.class_id,
+        c.semester,
+        c.year,
+        co.code AS course_code,
+        co.name AS course_name,
+        sub.submission_id,
+        sub.submission_text,
+        sub.attachment_url AS submission_attachment_url,
+        sub.status AS submission_status,
+        sub.grade AS submission_grade,
+        sub.feedback AS submission_feedback,
+        sub.submitted_at
+      FROM enrollments e
+      JOIN classes c ON c.class_id = e.class_id
+      JOIN courses co ON co.course_id = c.course_id
+      JOIN assignments a ON a.class_id = c.class_id
+      LEFT JOIN assignment_submissions sub
+        ON sub.assignment_id = a.assignment_id
+       AND sub.student_id = e.student_id
+      WHERE e.student_id = $1
+        AND a.is_published = TRUE
+      ORDER BY a.due_at ASC NULLS LAST, a.created_at DESC
+      `,
+      [ctx.student_id],
+    );
+
+    return res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/student/assignments/:assignmentId/submission
+router.post("/assignments/:assignmentId/submission", verifyJWT, studentOnly, async (req, res) => {
+  try {
+    const ctx = await getStudentContext(req);
+    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+
+    const [assignmentsOk, submissionsOk] = await Promise.all([
+      tableExists("assignments"),
+      tableExists("assignment_submissions"),
+    ]);
+    if (!assignmentsOk || !submissionsOk) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const assignmentId = parseInt(req.params.assignmentId, 10);
+    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ message: "Invalid assignment ID" });
+    }
+
+    const { submissionText, attachmentUrl } = req.body || {};
+    if (!submissionText && !attachmentUrl) {
+      return res.status(400).json({ message: "submissionText or attachmentUrl is required" });
+    }
+
+    const assignmentRes = await db.query(
+      `
+      SELECT a.assignment_id, a.class_id, a.due_at
+      FROM assignments a
+      JOIN enrollments e ON e.class_id = a.class_id
+      WHERE a.assignment_id = $1
+        AND e.student_id = $2
+        AND a.is_published = TRUE
+      LIMIT 1
+      `,
+      [assignmentId, ctx.student_id],
+    );
+    if (!assignmentRes.rows.length) {
+      return res.status(404).json({ message: "Assignment not found for this student" });
+    }
+
+    const dueAt = assignmentRes.rows[0]?.due_at ? new Date(assignmentRes.rows[0].due_at) : null;
+    const now = new Date();
+    const isLate = dueAt && now > dueAt;
+    const status = isLate ? "late" : "submitted";
+
+    const existing = await db.query(
+      `
+      SELECT submission_id
+      FROM assignment_submissions
+      WHERE assignment_id = $1 AND student_id = $2
+      `,
+      [assignmentId, ctx.student_id],
+    );
+
+    let saved;
+    if (existing.rows.length) {
+      saved = await db.query(
+        `
+        UPDATE assignment_submissions
+        SET
+          submission_text = $1,
+          attachment_url = $2,
+          status = $3,
+          submitted_at = NOW(),
+          updated_at = NOW()
+        WHERE submission_id = $4
+        RETURNING *
+        `,
+        [
+          submissionText ? String(submissionText).trim() : null,
+          attachmentUrl ? String(attachmentUrl).trim() : null,
+          status,
+          existing.rows[0].submission_id,
+        ],
+      );
+    } else {
+      saved = await db.query(
+        `
+        INSERT INTO assignment_submissions (
+          assignment_id, student_id, submission_text, attachment_url, submitted_at, status
+        )
+        VALUES ($1, $2, $3, $4, NOW(), $5)
+        RETURNING *
+        `,
+        [
+          assignmentId,
+          ctx.student_id,
+          submissionText ? String(submissionText).trim() : null,
+          attachmentUrl ? String(attachmentUrl).trim() : null,
+          status,
+        ],
+      );
+    }
+
+    return res.status(201).json(saved.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
   }
 });
 

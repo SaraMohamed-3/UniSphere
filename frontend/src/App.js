@@ -17,6 +17,7 @@ import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentExamSchedulePage from "./pages/StudentExamSchedulePage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
 import StudentTranscriptPage from "./pages/StudentTranscriptPage";
+import StudentAssignmentsPage from "./pages/StudentAssignmentsPage";
 import StudentFeesPage from "./pages/StudentFeesPage";
 import StudentChatbotPage from "./pages/StudentChatbotPage";
 import ProfessorPage from "./pages/ProfessorPage";
@@ -30,6 +31,7 @@ import ProfessorClassesPage from "./pages/ProfessorClassesPage";
 import ProfessorGradesPage from "./pages/ProfessorGradesPage";
 import ProfessorAttendancePage from "./pages/ProfessorAttendancePage";
 import ProfessorAnnouncementsPage from "./pages/ProfessorAnnouncementsPage";
+import ProfessorAssignmentsPage from "./pages/ProfessorAssignmentsPage";
 
 import ReportsPage from "./pages/ReportsPage";
 
@@ -92,6 +94,7 @@ function App() {
           <Route path="exams" element={<StudentExamSchedulePage />} />
           <Route path="attendance" element={<StudentAttendancePage />} />
           <Route path="transcript" element={<StudentTranscriptPage />} />
+          <Route path="assignments" element={<StudentAssignmentsPage />} />
           <Route path="academic-status" element={<StudentAcademicStatusPage />} />
           <Route path="assistant" element={<StudentChatbotPage />} />
           <Route path="messages" element={<MessagingPage />} />
@@ -112,6 +115,7 @@ function App() {
           <Route path="classes" element={<ProfessorClassesPage />} />
           <Route path="grades" element={<ProfessorGradesPage />} />
           <Route path="attendance" element={<ProfessorAttendancePage />} />
+          <Route path="assignments" element={<ProfessorAssignmentsPage />} />
           <Route
             path="announcements"
             element={<ProfessorAnnouncementsPage />}

@@ -8,6 +8,32 @@ function getUserId(req) {
   return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
 }
 
+async function tableExists(tableName) {
+  const r = await db.query(
+    `
+    SELECT to_regclass($1) IS NOT NULL AS exists
+    `,
+    [`public.${tableName}`],
+  );
+  return !!r.rows[0]?.exists;
+}
+
+async function getProfessorIdByUserId(userId) {
+  const r = await db.query(
+    `SELECT professor_id FROM professors WHERE user_id = $1`,
+    [userId],
+  );
+  return r.rows[0]?.professor_id || null;
+}
+
+async function assertAssignmentsSchema() {
+  const [assignmentsOk, submissionsOk] = await Promise.all([
+    tableExists("assignments"),
+    tableExists("assignment_submissions"),
+  ]);
+  return assignmentsOk && submissionsOk;
+}
+
 // =====================================================
 // DASHBOARD & OVERVIEW
 // =====================================================
@@ -186,6 +212,47 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       [professorId],
     );
 
+    const assignmentsSchemaOk = await assertAssignmentsSchema();
+    let pendingAssignmentReviews = 0;
+    let recentSubmissionRows = [];
+    if (assignmentsSchemaOk) {
+      const [pendingAssignmentRes, recentAssignmentSubmissionsRes] = await Promise.all([
+        db.query(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM assignment_submissions s
+          JOIN assignments a ON a.assignment_id = s.assignment_id
+          JOIN classes c ON c.class_id = a.class_id
+          WHERE c.professor_id = $1
+            AND LOWER(COALESCE(s.status, 'submitted')) = 'submitted'
+          `,
+          [professorId],
+        ),
+        db.query(
+          `
+          SELECT
+            s.submitted_at AS ts,
+            co.code AS course_code,
+            co.name AS course_name,
+            u.email AS student_email,
+            a.title AS assignment_title
+          FROM assignment_submissions s
+          JOIN assignments a ON a.assignment_id = s.assignment_id
+          JOIN classes c ON c.class_id = a.class_id
+          JOIN courses co ON co.course_id = c.course_id
+          JOIN students st ON st.student_id = s.student_id
+          JOIN users u ON u.user_id = st.user_id
+          WHERE c.professor_id = $1
+          ORDER BY s.submitted_at DESC
+          LIMIT 8
+          `,
+          [professorId],
+        ),
+      ]);
+      pendingAssignmentReviews = Number(pendingAssignmentRes.rows[0]?.count || 0);
+      recentSubmissionRows = recentAssignmentSubmissionsRes.rows;
+    }
+
     const submissions = recentActivityRes.rows.map((r) => ({
       title:
         r.kind === "grade"
@@ -193,7 +260,13 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
           : `Attendance updated for ${r.student_email}`,
       meta: `${r.course_code} - ${r.course_name}`,
       when: r.ts,
-    }));
+    })).concat(
+      recentSubmissionRows.map((r) => ({
+        title: `Submitted: ${r.assignment_title}`,
+        meta: `${r.course_code} - ${r.course_name} (${r.student_email})`,
+        when: r.ts,
+      })),
+    ).sort((a, b) => new Date(b.when) - new Date(a.when)).slice(0, 8);
 
     const coursePerformance = coursePerfRes.rows.map((r) => ({
       course: `${r.course_code} - ${r.course_name}`,
@@ -216,6 +289,12 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
         count: Number(pendingAnnouncementsRes.rows[0]?.count || 0),
         route: "/professor/announcements",
       },
+      {
+        key: "assignments",
+        title: "Pending Assignment Reviews",
+        count: pendingAssignmentReviews,
+        route: "/professor/assignments",
+      },
     ];
 
     res.json({
@@ -233,6 +312,7 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       quickActions: [
         { key: "attendance", label: "Mark Attendance" },
         { key: "grades", label: "Enter Grades" },
+        { key: "assignments", label: "Manage Assignments" },
         { key: "announce", label: "View Announcements" },
         { key: "students", label: "My Classes" },
       ],
@@ -244,7 +324,7 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
         students: c.enrolled,
         classId: c.class_id,
       })),
-      submissions: [],
+      submissions,
       coursePerformance,
       pendingTasks,
     });
@@ -647,6 +727,350 @@ router.delete("/announcements/:announcementId", verifyJWT, professorOnly, async 
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
+  }
+});
+
+// =====================================================
+// ASSIGNMENTS MANAGEMENT
+// =====================================================
+router.get("/classes/:classId/assignments", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const classId = parseInt(req.params.classId, 10);
+    if (!Number.isInteger(classId) || classId <= 0) {
+      return res.status(400).json({ message: "Invalid class ID" });
+    }
+
+    const userId = getUserId(req);
+    const classRes = await db.query(
+      `
+      SELECT c.class_id
+      FROM classes c
+      JOIN professors p ON p.professor_id = c.professor_id
+      WHERE c.class_id = $1 AND p.user_id = $2
+      `,
+      [classId, userId],
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ message: "Class not found" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        a.assignment_id,
+        a.class_id,
+        a.title,
+        a.description,
+        a.attachment_url,
+        a.due_at,
+        a.max_points,
+        a.is_published,
+        a.created_at,
+        a.updated_at,
+        COUNT(DISTINCT e.student_id)::int AS assigned_students,
+        COUNT(DISTINCT s.student_id)::int AS submitted_students
+      FROM assignments a
+      LEFT JOIN enrollments e ON e.class_id = a.class_id
+      LEFT JOIN assignment_submissions s ON s.assignment_id = a.assignment_id
+      WHERE a.class_id = $1
+      GROUP BY a.assignment_id
+      ORDER BY a.created_at DESC
+      `,
+      [classId],
+    );
+    return res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/assignments", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const { classId, title, description, dueAt, maxPoints, attachmentUrl, isPublished } = req.body || {};
+    if (!classId || !title || !dueAt) {
+      return res.status(400).json({ message: "classId, title, and dueAt are required" });
+    }
+
+    const userId = getUserId(req);
+    const professorId = await getProfessorIdByUserId(userId);
+    if (!professorId) {
+      return res.status(404).json({ message: "Professor profile not found" });
+    }
+
+    const classRes = await db.query(
+      `SELECT class_id FROM classes WHERE class_id = $1 AND professor_id = $2`,
+      [Number(classId), professorId],
+    );
+    if (!classRes.rows.length) {
+      return res.status(403).json({ message: "Access denied for this class" });
+    }
+
+    const result = await db.query(
+      `
+      INSERT INTO assignments (
+        class_id, title, description, attachment_url, due_at, max_points, created_by, is_published
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+      `,
+      [
+        Number(classId),
+        String(title).trim(),
+        description ? String(description).trim() : null,
+        attachmentUrl ? String(attachmentUrl).trim() : null,
+        dueAt,
+        Number(maxPoints || 100),
+        userId,
+        isPublished !== false,
+      ],
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/assignments/:assignmentId", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const assignmentId = parseInt(req.params.assignmentId, 10);
+    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ message: "Invalid assignment ID" });
+    }
+
+    const { title, description, dueAt, maxPoints, attachmentUrl, isPublished } = req.body || {};
+    if (!title || !dueAt) {
+      return res.status(400).json({ message: "title and dueAt are required" });
+    }
+
+    const userId = getUserId(req);
+    const existing = await db.query(
+      `
+      SELECT a.assignment_id
+      FROM assignments a
+      JOIN classes c ON c.class_id = a.class_id
+      JOIN professors p ON p.professor_id = c.professor_id
+      WHERE a.assignment_id = $1 AND p.user_id = $2
+      `,
+      [assignmentId, userId],
+    );
+    if (!existing.rows.length) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const updated = await db.query(
+      `
+      UPDATE assignments
+      SET
+        title = $1,
+        description = $2,
+        attachment_url = $3,
+        due_at = $4,
+        max_points = $5,
+        is_published = $6,
+        updated_at = NOW()
+      WHERE assignment_id = $7
+      RETURNING *
+      `,
+      [
+        String(title).trim(),
+        description ? String(description).trim() : null,
+        attachmentUrl ? String(attachmentUrl).trim() : null,
+        dueAt,
+        Number(maxPoints || 100),
+        isPublished !== false,
+        assignmentId,
+      ],
+    );
+    return res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete("/assignments/:assignmentId", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const assignmentId = parseInt(req.params.assignmentId, 10);
+    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ message: "Invalid assignment ID" });
+    }
+
+    const userId = getUserId(req);
+    const existing = await db.query(
+      `
+      SELECT a.assignment_id
+      FROM assignments a
+      JOIN classes c ON c.class_id = a.class_id
+      JOIN professors p ON p.professor_id = c.professor_id
+      WHERE a.assignment_id = $1 AND p.user_id = $2
+      `,
+      [assignmentId, userId],
+    );
+    if (!existing.rows.length) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    await db.query(`DELETE FROM assignments WHERE assignment_id = $1`, [assignmentId]);
+    return res.json({ message: "Assignment deleted" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/assignments/:assignmentId/submissions", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const assignmentId = parseInt(req.params.assignmentId, 10);
+    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ message: "Invalid assignment ID" });
+    }
+
+    const userId = getUserId(req);
+    const assignmentRes = await db.query(
+      `
+      SELECT
+        a.assignment_id,
+        a.class_id,
+        a.title,
+        a.description,
+        a.due_at,
+        a.max_points,
+        c.semester,
+        c.year,
+        co.code AS course_code,
+        co.name AS course_name
+      FROM assignments a
+      JOIN classes c ON c.class_id = a.class_id
+      JOIN courses co ON co.course_id = c.course_id
+      JOIN professors p ON p.professor_id = c.professor_id
+      WHERE a.assignment_id = $1 AND p.user_id = $2
+      `,
+      [assignmentId, userId],
+    );
+    if (!assignmentRes.rows.length) {
+      return res.status(404).json({ message: "Assignment not found" });
+    }
+    const assignment = assignmentRes.rows[0];
+
+    const submissionsRes = await db.query(
+      `
+      SELECT
+        s.student_id,
+        u.email AS student_email,
+        sub.submission_id,
+        sub.submission_text,
+        sub.attachment_url,
+        sub.status,
+        sub.grade,
+        sub.feedback,
+        sub.submitted_at,
+        sub.updated_at
+      FROM enrollments e
+      JOIN students s ON s.student_id = e.student_id
+      JOIN users u ON u.user_id = s.user_id
+      LEFT JOIN assignment_submissions sub
+        ON sub.assignment_id = $1
+       AND sub.student_id = s.student_id
+      WHERE e.class_id = $2
+      ORDER BY u.email ASC
+      `,
+      [assignmentId, assignment.class_id],
+    );
+
+    const summary = submissionsRes.rows.reduce(
+      (acc, row) => {
+        if (row.submission_id) acc.submitted += 1;
+        else acc.not_submitted += 1;
+        if (String(row.status || "").toLowerCase() === "graded") acc.graded += 1;
+        return acc;
+      },
+      { submitted: 0, not_submitted: 0, graded: 0 },
+    );
+
+    return res.json({
+      assignment,
+      summary: { ...summary, total_students: submissionsRes.rows.length },
+      submissions: submissionsRes.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.patch("/submissions/:submissionId/review", verifyJWT, professorOnly, async (req, res) => {
+  try {
+    if (!(await assertAssignmentsSchema())) {
+      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+    }
+
+    const submissionId = parseInt(req.params.submissionId, 10);
+    if (!Number.isInteger(submissionId) || submissionId <= 0) {
+      return res.status(400).json({ message: "Invalid submission ID" });
+    }
+
+    const { status, grade, feedback } = req.body || {};
+    const normalizedStatus = String(status || "graded").toLowerCase();
+    if (!["submitted", "graded", "late"].includes(normalizedStatus)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const userId = getUserId(req);
+    const allowed = await db.query(
+      `
+      SELECT sub.submission_id
+      FROM assignment_submissions sub
+      JOIN assignments a ON a.assignment_id = sub.assignment_id
+      JOIN classes c ON c.class_id = a.class_id
+      JOIN professors p ON p.professor_id = c.professor_id
+      WHERE sub.submission_id = $1 AND p.user_id = $2
+      `,
+      [submissionId, userId],
+    );
+    if (!allowed.rows.length) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const updated = await db.query(
+      `
+      UPDATE assignment_submissions
+      SET
+        status = $1,
+        grade = $2,
+        feedback = $3,
+        graded_at = CASE WHEN $1 = 'graded' THEN NOW() ELSE graded_at END,
+        updated_at = NOW()
+      WHERE submission_id = $4
+      RETURNING *
+      `,
+      [normalizedStatus, grade == null || grade === "" ? null : Number(grade), feedback || null, submissionId],
+    );
+    return res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
   }
 });
 

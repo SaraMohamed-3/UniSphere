@@ -186,6 +186,13 @@ export default function StudentLayout() {
         </div>
 
         <div
+          style={itemStyle(isActive("/student/assignments"))}
+          onClick={() => nav("/student/assignments")}
+        >
+          <span>Assignments</span>
+        </div>
+
+        <div
           style={itemStyle(isActive("/student/grades"))}
           onClick={() => nav("/student/grades")}
         >
