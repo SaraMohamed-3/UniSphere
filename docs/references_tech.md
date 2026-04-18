@@ -18,7 +18,7 @@
 - **Tournament Selection**, **Crossover**, **Mutation**
 - Penalty‑based fitness for conflicts and hard constraints
 
-## Database Schema Additions (Project)
+## Database Schema Additions
 - `tuition_rules`, `fee_components`, `student_financial_profiles`
 - `registration_windows`
 - `rooms`, `time_slots`, `professor_unavailability`
@@ -29,3 +29,4 @@
 - University SIS scope and requirements.
 
 **Note:** The scheduling module was implemented in‑house in `backend/modules/scheduler`. No GitHub or third‑party scheduling engine was used.
+

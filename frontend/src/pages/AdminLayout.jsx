@@ -149,6 +149,12 @@ export default function AdminLayout() {
           <span>Predictive Analytics</span>
         </div>
         <div
+          style={itemStyle(isActive("/admin/academic-monitoring"))}
+          onClick={() => nav("/admin/academic-monitoring")}
+        >
+          <span>Academic Monitoring</span>
+        </div>
+        <div
           style={itemStyle(isActive("/admin/messages"))}
           onClick={() => nav("/admin/messages")}
         >
