@@ -7,7 +7,9 @@ function normalizeInput(payload) {
   const timeSlots = Array.isArray(payload.timeSlots) ? payload.timeSlots : [];
 
   if (classes.length === 0 || rooms.length === 0 || timeSlots.length === 0) {
-    const err = new Error("classes, rooms, and timeSlots are required and cannot be empty");
+    const err = new Error(
+      "classes, rooms, and timeSlots are required and cannot be empty",
+    );
     err.status = 400;
     throw err;
   }
@@ -63,25 +65,30 @@ function evaluateSchedule(payload, assignments) {
 async function getResources(filters) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
 
-  const [rooms, timeSlots, classes, professors, unavailability] = await Promise.all([
-    schedulerModel.listRooms(),
-    schedulerModel.listTimeSlots(),
-    schedulerModel.listSchedulableClasses(filters),
-    schedulerModel.listProfessors(),
-    schedulerModel.listProfessorUnavailability(),
-  ]);
+  const [rooms, timeSlots, classes, professors, unavailability] =
+    await Promise.all([
+      schedulerModel.listRooms(),
+      schedulerModel.listTimeSlots(),
+      schedulerModel.listSchedulableClasses(filters),
+      schedulerModel.listProfessors(),
+      schedulerModel.listProfessorUnavailability(),
+    ]);
   return { rooms, timeSlots, classes, professors, unavailability };
 }
 
 async function listRooms() {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -91,7 +98,9 @@ async function listRooms() {
 async function listTimeSlots() {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -101,7 +110,9 @@ async function listTimeSlots() {
 async function addRoom(payload) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -123,7 +134,9 @@ async function addRoom(payload) {
 async function removeRoom(roomId) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -145,7 +158,9 @@ async function removeRoom(roomId) {
 async function addTimeSlot(payload) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -168,7 +183,9 @@ async function addTimeSlot(payload) {
 async function removeTimeSlot(slotId) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -190,7 +207,9 @@ async function removeTimeSlot(slotId) {
 async function addProfessorUnavailability(payload) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -216,7 +235,9 @@ async function addProfessorUnavailability(payload) {
 async function removeProfessorUnavailability(unavailabilityId) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
@@ -238,18 +259,21 @@ async function removeProfessorUnavailability(unavailabilityId) {
 async function generateFromDb(filters, options) {
   const ready = await schedulerModel.schedulerSchemaReady();
   if (!ready) {
-    const err = new Error("Scheduler schema not initialized. Run migration 008_scheduler_core.sql");
+    const err = new Error(
+      "Scheduler schema not initialized. Run migration 008_scheduler_core.sql",
+    );
     err.status = 400;
     throw err;
   }
 
-  const [rooms, timeSlots, classes, professors, unavailability] = await Promise.all([
-    schedulerModel.listRooms(),
-    schedulerModel.listTimeSlots(),
-    schedulerModel.listSchedulableClasses(filters),
-    schedulerModel.listProfessors(),
-    schedulerModel.listProfessorUnavailability(),
-  ]);
+  const [rooms, timeSlots, classes, professors, unavailability] =
+    await Promise.all([
+      schedulerModel.listRooms(),
+      schedulerModel.listTimeSlots(),
+      schedulerModel.listSchedulableClasses(filters),
+      schedulerModel.listProfessors(),
+      schedulerModel.listProfessorUnavailability(),
+    ]);
   if (!classes.length) {
     const err = new Error("No classes available for scheduling");
     err.status = 400;
@@ -276,7 +300,10 @@ async function generateFromDb(filters, options) {
     best_score: output.bestScore,
     meta: output.meta,
   });
-  await schedulerModel.insertScheduleAssignments(run.run_id, output.assignments);
+  await schedulerModel.insertScheduleAssignments(
+    run.run_id,
+    output.assignments,
+  );
   return { ...output, conflicts, run_id: run.run_id };
 }
 
@@ -296,7 +323,9 @@ function buildConflictReport(input, assignments) {
   const conflicts = [];
   const roomById = new Map(input.rooms.map((r) => [r.room_id, r]));
   const slotById = new Map(input.timeSlots.map((s) => [s.slot_id, s]));
-  const unavailable = input.constraints?.professorUnavailable || new Set();
+  const profById = new Map(
+    (input.professors || []).map((p) => [p.professor_id, p.name]),
+  );
 
   assignments.forEach((a) => {
     const cls = input.classes[a.class_idx];
@@ -306,21 +335,13 @@ function buildConflictReport(input, assignments) {
     roomSlot.set(roomKey, (roomSlot.get(roomKey) || 0) + 1);
     profSlot.set(profKey, (profSlot.get(profKey) || 0) + 1);
 
-    if (unavailable.has(profKey)) {
-      conflicts.push({
-        type: "PROFESSOR_UNAVAILABLE",
-        class_id: cls?.class_id,
-        professor_id: cls?.professor_id,
-        slot_id: a.slot_id,
-      });
-    }
-
     const room = roomById.get(a.room_id);
     if (room && Number(cls?.size || 0) > Number(room.capacity || 0)) {
       conflicts.push({
         type: "CAPACITY_EXCEEDED",
         class_id: cls?.class_id,
         room_id: a.room_id,
+        room_name: room?.name || null,
         needed: cls?.size,
         capacity: room.capacity,
       });
@@ -328,12 +349,38 @@ function buildConflictReport(input, assignments) {
   });
 
   roomSlot.forEach((count, key) => {
-    if (count > 1) conflicts.push({ type: "ROOM_CONFLICT", key, count });
+    if (count > 1) {
+      const [room_id, slot_id] = key.split("__");
+      const room = roomById.get(Number(room_id));
+      const slot = slotById.get(Number(slot_id));
+
+      conflicts.push({
+        type: "ROOM_CONFLICT",
+        room_id: Number(room_id),
+        room_name: room?.name || null,
+        day: slot?.day || null,
+        start: slot?.start_time || null,
+        end: slot?.end_time || null,
+        count,
+      });
+    }
   });
   profSlot.forEach((count, key) => {
-    if (count > 1) conflicts.push({ type: "PROFESSOR_CONFLICT", key, count });
-  });
+    if (count > 1) {
+      const [professor_id, slot_id] = key.split("__");
+      const slot = slotById.get(Number(slot_id));
 
+      conflicts.push({
+        type: "PROFESSOR_CONFLICT",
+        professor_id: Number(professor_id),
+        professor_name: profById.get(Number(professor_id)) || null, // ✅ ADD THIS
+        day: slot?.day || null,
+        start: slot?.start_time || null,
+        end: slot?.end_time || null,
+        count,
+      });
+    }
+  });
   return conflicts;
 }
 
