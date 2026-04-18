@@ -5,15 +5,28 @@ import api from "../services/api";
 export default function AdminCourseManagement() {
   // Courses
   const [courses, setCourses] = useState([]);
-  const [courseForm, setCourseForm] = useState({ name: "", code: "", department_id: "", credit_hours: "" });
+  const [courseForm, setCourseForm] = useState({
+    name: "",
+    code: "",
+    department_id: "",
+    credit_hours: "",
+  });
 
   // Classes
   const [classes, setClasses] = useState([]);
-  const [classForm, setClassForm] = useState({ course_id: "", semester: "", year: "", professor_id: "" });
+  const [classForm, setClassForm] = useState({
+    course_id: "",
+    semester: "",
+    year: "",
+    professor_id: "",
+  });
 
   // Professor Assignments
   const [professors, setProfessors] = useState([]);
-  const [assignForm, setAssignForm] = useState({ class_id: "", professor_id: "" });
+  const [assignForm, setAssignForm] = useState({
+    class_id: "",
+    professor_id: "",
+  });
 
   // Exams
   const [exams, setExams] = useState([]);
@@ -46,7 +59,11 @@ export default function AdminCourseManagement() {
   const [rooms, setRooms] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
   const [roomForm, setRoomForm] = useState({ name: "", capacity: "" });
-  const [slotForm, setSlotForm] = useState({ day: "", start_time: "", end_time: "" });
+  const [slotForm, setSlotForm] = useState({
+    day: "",
+    start_time: "",
+    end_time: "",
+  });
   const [scheduleParams, setScheduleParams] = useState({
     semester: "",
     year: "",
@@ -65,30 +82,42 @@ export default function AdminCourseManagement() {
 
   // Fetch initial data
   const fetchCourses = () => {
-    api.get("/admin/courses", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    api
+      .get("/admin/courses", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
       .then((res) => setCourses(res.data))
       .catch((err) => console.error(err));
   };
 
   const fetchClasses = () => {
-    api.get("/admin/classes", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    api
+      .get("/admin/classes", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
       .then((res) => setClasses(res.data))
       .catch((err) => console.error(err));
   };
 
   const fetchProfessors = () => {
-    api.get("/admin/users", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-      .then((res) => setProfessors(res.data.filter(u => u.role === "professor")))
+    api
+      .get("/admin/users", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) =>
+        setProfessors(res.data.filter((u) => u.role === "professor")),
+      )
       .catch((err) => console.error(err));
   };
 
-    const fetchExams = () => {
-    api.get("/admin/exams", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-    })
-    .then((res) => setExams(res.data))
-    .catch((err) => console.error(err));
-    };
+  const fetchExams = () => {
+    api
+      .get("/admin/exams", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => setExams(res.data))
+      .catch((err) => console.error(err));
+  };
 
   const fetchTuitionRules = () => {
     api
@@ -121,7 +150,10 @@ export default function AdminCourseManagement() {
     api
       .get("/scheduler/resources", {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        params: { semester: scheduleParams.semester, year: scheduleParams.year },
+        params: {
+          semester: scheduleParams.semester,
+          year: scheduleParams.year,
+        },
       })
       .then((res) => {
         setRooms(res.data?.rooms || []);
@@ -156,68 +188,91 @@ export default function AdminCourseManagement() {
   // --- Handlers ---
   const handleCourseSubmit = (e) => {
     e.preventDefault();
-    api.post("/admin/courses", courseForm, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-      .then(() => { 
-        alert("Course created"); 
-        setCourseForm({ name: "", code: "", department_id: "", credit_hours: "" }); 
-        fetchCourses(); 
+    api
+      .post("/admin/courses", courseForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       })
-      .catch(err => alert(err.response?.data?.message || err.message));
+      .then(() => {
+        alert("Course created");
+        setCourseForm({
+          name: "",
+          code: "",
+          department_id: "",
+          credit_hours: "",
+        });
+        fetchCourses();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
   };
 
   const handleClassSubmit = (e) => {
     e.preventDefault();
-    api.post("/admin/classes", classForm, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-      .then(() => { 
-        alert("Class created"); 
-        setClassForm({ course_id: "", semester: "", year: "", professor_id: "" }); 
-        fetchClasses(); 
+    api
+      .post("/admin/classes", classForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       })
-      .catch(err => alert(err.response?.data?.message || err.message));
+      .then(() => {
+        alert("Class created");
+        setClassForm({
+          course_id: "",
+          semester: "",
+          year: "",
+          professor_id: "",
+        });
+        fetchClasses();
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
   };
 
   const handleAssignSubmit = (e) => {
     e.preventDefault();
-    api.put(`/admin/classes/${assignForm.class_id}/professor`, { professor_id: assignForm.professor_id }, 
-      { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-      .then(() => { 
-        alert("Professor assigned"); 
-        setAssignForm({ class_id: "", professor_id: "" }); 
-        fetchClasses(); 
+    api
+      .put(
+        `/admin/classes/${assignForm.class_id}/professor`,
+        { professor_id: assignForm.professor_id },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
+      )
+      .then(() => {
+        alert("Professor assigned");
+        setAssignForm({ class_id: "", professor_id: "" });
+        fetchClasses();
       })
-      .catch(err => alert(err.response?.data?.message || err.message));
+      .catch((err) => alert(err.response?.data?.message || err.message));
   };
 
-const handleExamSubmit = (e) => {
-  e.preventDefault();
+  const handleExamSubmit = (e) => {
+    e.preventDefault();
 
-  // Ensure all required fields are included
-  const payload = {
-    exam_type: examForm.exam_type, // midterm/final
-    exam_date: examForm.exam_date,
-    start_time: examForm.start_time,
-    end_time: examForm.end_time,
-    location: examForm.location,
+    // Ensure all required fields are included
+    const payload = {
+      exam_type: examForm.exam_type, // midterm/final
+      exam_date: examForm.exam_date,
+      start_time: examForm.start_time,
+      end_time: examForm.end_time,
+      location: examForm.location,
+    };
+
+    api
+      .post(`/admin/classes/${examForm.class_id}/exams`, payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then(() => {
+        alert("Exam scheduled");
+        // Reset all fields including exam_type
+        setExamForm({
+          class_id: "",
+          exam_type: "",
+          exam_date: "",
+          start_time: "",
+          end_time: "",
+          location: "",
+        });
+        fetchExams(); // Refresh table
+      })
+      .catch((err) => alert(err.response?.data?.message || err.message));
   };
-
-  api.post(`/admin/classes/${examForm.class_id}/exams`, payload, {
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-  })
-    .then(() => {
-      alert("Exam scheduled");
-      // Reset all fields including exam_type
-      setExamForm({
-        class_id: "",
-        exam_type: "",
-        exam_date: "",
-        start_time: "",
-        end_time: "",
-        location: "",
-      });
-      fetchExams(); // Refresh table
-    })
-    .catch(err => alert(err.response?.data?.message || err.message));
-};
 
   const handleTuitionRuleSubmit = (e) => {
     e.preventDefault();
@@ -408,23 +463,44 @@ const handleExamSubmit = (e) => {
 
   const buildScheduleGrid = () => {
     if (!scheduleResult?.assignments?.length || !timeSlots.length) return null;
-    const days = Array.from(new Set(timeSlots.map((s) => s.day)));
-    const slotLabels = timeSlots.map((s) => ({
-      key: `${s.day}_${s.start_time}_${s.end_time}`,
-      day: s.day,
-      label: `${s.start_time}-${s.end_time}`,
-      start: s.start_time,
-      end: s.end_time,
-    }));
+
+    const dayOrder = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+
+    const days = Array.from(new Set(timeSlots.map((s) => s.day))).sort(
+      (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b),
+    );
+
+    const slotLabels = Array.from(
+      new Map(
+        timeSlots.map((s) => [
+          `${s.start_time}_${s.end_time}`,
+          {
+            key: `${s.start_time}_${s.end_time}`,
+            label: `${s.start_time}-${s.end_time}`,
+            start: s.start_time,
+            end: s.end_time,
+          },
+        ]),
+      ).values(),
+    ).sort((a, b) => a.start.localeCompare(b.start));
+
     const grid = new Map();
     scheduleResult.assignments.forEach((a) => {
-      const k = `${a.day}_${a.start}_${a.end}`;
-      if (!grid.has(k)) grid.set(k, []);
-      grid.get(k).push(a);
+      const key = `${a.day}_${a.start}_${a.end}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(a);
     });
+
     return { days, slotLabels, grid };
   };
-
   const handleRunScheduler = (e) => {
     e.preventDefault();
     api
@@ -437,7 +513,9 @@ const handleExamSubmit = (e) => {
           generations: Number(scheduleParams.generations),
           mutationRate: Number(scheduleParams.mutationRate),
         },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
       )
       .then((res) => {
         setScheduleResult(res.data);
@@ -454,7 +532,9 @@ const handleExamSubmit = (e) => {
       .post(
         "/scheduler/apply",
         { assignments: scheduleResult.assignments },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
       )
       .then(() => {
         alert("Schedule applied to classes");
@@ -466,9 +546,13 @@ const handleExamSubmit = (e) => {
     const ok = window.confirm("Apply this saved schedule run?");
     if (!ok) return;
     api
-      .post(`/scheduler/runs/${runId}/apply`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
+      .post(
+        `/scheduler/runs/${runId}/apply`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
+      )
       .then(() => alert("Schedule run applied"))
       .catch((err) => alert(err.response?.data?.message || err.message));
   };
@@ -481,7 +565,9 @@ const handleExamSubmit = (e) => {
       .post(
         "/scheduler/announce",
         { title, body },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
       )
       .then(() => alert("Announcement posted"))
       .catch((err) => alert(err.response?.data?.message || err.message));
@@ -490,11 +576,9 @@ const handleExamSubmit = (e) => {
   const handleUnavailabilitySubmit = (e) => {
     e.preventDefault();
     api
-      .post(
-        "/scheduler/unavailability",
-        unavailabilityForm,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
-      )
+      .post("/scheduler/unavailability", unavailabilityForm, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
       .then(() => {
         alert("Unavailability saved");
         setUnavailabilityForm({ professor_id: "", slot_id: "", reason: "" });
@@ -545,55 +629,146 @@ const handleExamSubmit = (e) => {
 
   return (
     <div style={{ fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: 10 }}>Course Management</h1>
-      <p style={{ marginBottom: 30, color: "#666" }}>Admin View: manage courses, classes, professors, and exams</p>
+      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: 10 }}>
+        Course Management
+      </h1>
+      <p style={{ marginBottom: 30, color: "#666" }}>
+        Admin View: manage courses, classes, professors, and exams
+      </p>
 
       {/* --- CREATE COURSE --- */}
       <div style={sectionStyle}>
         <h2 style={{ marginBottom: 15 }}>Create New Course</h2>
-        <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleCourseSubmit}>
-          <input placeholder="Course Name" value={courseForm.name} onChange={e => setCourseForm({...courseForm, name: e.target.value})} style={inputStyle} required/>
-          <input placeholder="Course Code" value={courseForm.code} onChange={e => setCourseForm({...courseForm, code: e.target.value})} style={inputStyle} required/>
-          <input type="number" placeholder="Dept ID" value={courseForm.department_id} onChange={e => setCourseForm({...courseForm, department_id: e.target.value})} style={inputStyle} required/>
-          <input type="number" placeholder="Credit Hours" value={courseForm.credit_hours} onChange={e => setCourseForm({...courseForm, credit_hours: e.target.value})} style={inputStyle} required/>
-          <button type="submit" style={buttonStyle}>Create</button>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          onSubmit={handleCourseSubmit}
+        >
+          <input
+            placeholder="Course Name"
+            value={courseForm.name}
+            onChange={(e) =>
+              setCourseForm({ ...courseForm, name: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            placeholder="Course Code"
+            value={courseForm.code}
+            onChange={(e) =>
+              setCourseForm({ ...courseForm, code: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Dept ID"
+            value={courseForm.department_id}
+            onChange={(e) =>
+              setCourseForm({ ...courseForm, department_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Credit Hours"
+            value={courseForm.credit_hours}
+            onChange={(e) =>
+              setCourseForm({ ...courseForm, credit_hours: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <button type="submit" style={buttonStyle}>
+            Create
+          </button>
         </form>
       </div>
 
       {/* --- CREATE CLASS --- */}
       <div style={sectionStyle}>
         <h2 style={{ marginBottom: 15 }}>Create Class</h2>
-        <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleClassSubmit}>
-          <select value={classForm.course_id} onChange={e => setClassForm({...classForm, course_id:e.target.value})} style={inputStyle} required>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          onSubmit={handleClassSubmit}
+        >
+          <select
+            value={classForm.course_id}
+            onChange={(e) =>
+              setClassForm({ ...classForm, course_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
             <option value="">Select Course</option>
-            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.name} ({c.code})</option>)}
+            {courses.map((c) => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.name} ({c.code})
+              </option>
+            ))}
           </select>
-          <select value={classForm.professor_id} onChange={e => setClassForm({...classForm, professor_id:e.target.value})} style={inputStyle} required>
+          <select
+            value={classForm.professor_id}
+            onChange={(e) =>
+              setClassForm({ ...classForm, professor_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
             <option value="">Select Professor</option>
-            {professors.map(p => <option key={p.user_id} value={p.user_id}>{p.email}</option>)}
+            {professors.map((p) => (
+              <option key={p.professor_id} value={p.professor_id}>
+                {p.name || p.email}{" "}
+              </option>
+            ))}
           </select>
-          <input placeholder="Semester" value={classForm.semester} onChange={e => setClassForm({...classForm, semester:e.target.value})} style={inputStyle} required/>
-          <input type="number" placeholder="Year" value={classForm.year} onChange={e => setClassForm({...classForm, year:e.target.value})} style={inputStyle} required/>
-          <button type="submit" style={buttonStyle}>Create</button>
+          <input
+            placeholder="Semester"
+            value={classForm.semester}
+            onChange={(e) =>
+              setClassForm({ ...classForm, semester: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="number"
+            placeholder="Year"
+            value={classForm.year}
+            onChange={(e) =>
+              setClassForm({ ...classForm, year: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <button type="submit" style={buttonStyle}>
+            Create
+          </button>
         </form>
 
         {/* Classes Table */}
-        <table style={{ width:"100%", borderCollapse:"collapse", marginTop:20 }}>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+        >
           <thead>
-            <tr style={{ backgroundColor:"#f0f0f0", textAlign:"left" }}>
-              <th style={{ padding:"10px" }}>ID</th>
-              <th style={{ padding:"10px" }}>Course</th>
-              <th style={{ padding:"10px" }}>Semester</th>
-              <th style={{ padding:"10px" }}>Year</th>
+            <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+              <th style={{ padding: "10px" }}>ID</th>
+              <th style={{ padding: "10px" }}>Course</th>
+              <th style={{ padding: "10px" }}>Semester</th>
+              <th style={{ padding: "10px" }}>Year</th>
             </tr>
           </thead>
           <tbody>
-            {classes.map(cl => (
-              <tr key={cl.class_id} style={{ borderBottom:"1px solid #eee" }}>
-                <td style={{ padding:"10px" }}>{cl.class_id}</td>
-                <td style={{ padding:"10px" }}>{courses.find(c => c.course_id === cl.course_id)?.name}</td>
-                <td style={{ padding:"10px" }}>{cl.semester}</td>
-                <td style={{ padding:"10px" }}>{cl.year}</td>
+            {classes.map((cl) => (
+              <tr key={cl.class_id} style={{ borderBottom: "1px solid #eee" }}>
+                <td style={{ padding: "10px" }}>{cl.class_id}</td>
+                <td style={{ padding: "10px" }}>
+                  {courses.find((c) => c.course_id === cl.course_id)?.name}
+                </td>
+                <td style={{ padding: "10px" }}>{cl.semester}</td>
+                <td style={{ padding: "10px" }}>{cl.year}</td>
               </tr>
             ))}
           </tbody>
@@ -603,88 +778,175 @@ const handleExamSubmit = (e) => {
       {/* --- ASSIGN PROFESSOR --- */}
       <div style={sectionStyle}>
         <h2 style={{ marginBottom: 15 }}>Assign Professor to Class</h2>
-        <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleAssignSubmit}>
-          <select value={assignForm.class_id} onChange={e => setAssignForm({...assignForm, class_id:e.target.value})} style={inputStyle} required>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          onSubmit={handleAssignSubmit}
+        >
+          <select
+            value={assignForm.class_id}
+            onChange={(e) =>
+              setAssignForm({ ...assignForm, class_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
             <option value="">Select Class</option>
-            {classes.map(cl => (
+            {classes.map((cl) => (
               <option key={cl.class_id} value={cl.class_id}>
-                {courses.find(c => c.course_id === cl.course_id)?.name} - {cl.semester} {cl.year}
+                {courses.find((c) => c.course_id === cl.course_id)?.name} -{" "}
+                {cl.semester} {cl.year}
               </option>
             ))}
           </select>
-          <select value={assignForm.professor_id} onChange={e => setAssignForm({...assignForm, professor_id:e.target.value})} style={inputStyle} required>
+          <select
+            value={assignForm.professor_id}
+            onChange={(e) =>
+              setAssignForm({ ...assignForm, professor_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
             <option value="">Select Professor</option>
-            {professors.map(p => <option key={p.user_id} value={p.user_id}>{p.email}</option>)}
+            {professors.map((p) => (
+              <option key={p.professor_id} value={p.professor_id}>
+                {p.name || p.email}{" "}
+              </option>
+            ))}
           </select>
-          <button type="submit" style={buttonStyle}>Assign</button>
+          <button type="submit" style={buttonStyle}>
+            Assign
+          </button>
         </form>
       </div>
 
-{/* --- SCHEDULE EXAM --- */}
-<div style={sectionStyle}>
-  <h2 style={{ marginBottom: 15 }}>Schedule Exam</h2>
-  <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleExamSubmit}>
-    
-    <select value={examForm.class_id} onChange={e => setExamForm({...examForm,class_id:e.target.value})} style={inputStyle} required>
-      <option value="">Select Class</option>
-      {classes.map(cl => (
-        <option key={cl.class_id} value={cl.class_id}>
-          {courses.find(c => c.course_id === cl.course_id)?.name} - {cl.semester} {cl.year}
-        </option>
-      ))}
-    </select>
+      {/* --- SCHEDULE EXAM --- */}
+      <div style={sectionStyle}>
+        <h2 style={{ marginBottom: 15 }}>Schedule Exam</h2>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          onSubmit={handleExamSubmit}
+        >
+          <select
+            value={examForm.class_id}
+            onChange={(e) =>
+              setExamForm({ ...examForm, class_id: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
+            <option value="">Select Class</option>
+            {classes.map((cl) => (
+              <option key={cl.class_id} value={cl.class_id}>
+                {courses.find((c) => c.course_id === cl.course_id)?.name} -{" "}
+                {cl.semester} {cl.year}
+              </option>
+            ))}
+          </select>
 
-    {/* New exam type dropdown */}
-    <select value={examForm.exam_type || ""} onChange={e => setExamForm({...examForm, exam_type:e.target.value})} style={inputStyle} required>
-      <option value="">Select Exam Type</option>
-      <option value="midterm">Midterm</option>
-      <option value="final">Final</option>
-    </select>
+          {/* New exam type dropdown */}
+          <select
+            value={examForm.exam_type || ""}
+            onChange={(e) =>
+              setExamForm({ ...examForm, exam_type: e.target.value })
+            }
+            style={inputStyle}
+            required
+          >
+            <option value="">Select Exam Type</option>
+            <option value="midterm">Midterm</option>
+            <option value="final">Final</option>
+          </select>
 
-    <input type="date" value={examForm.exam_date} onChange={e => setExamForm({...examForm, exam_date:e.target.value})} style={inputStyle} required/>
-    <input type="time" value={examForm.start_time} onChange={e => setExamForm({...examForm, start_time:e.target.value})} style={inputStyle} required/>
-    <input type="time" value={examForm.end_time} onChange={e => setExamForm({...examForm, end_time:e.target.value})} style={inputStyle} required/>
-    <input placeholder="Location" value={examForm.location} onChange={e => setExamForm({...examForm, location:e.target.value})} style={inputStyle} required/>
-    <button type="submit" style={buttonStyle}>Schedule</button>
-  </form>
+          <input
+            type="date"
+            value={examForm.exam_date}
+            onChange={(e) =>
+              setExamForm({ ...examForm, exam_date: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="time"
+            value={examForm.start_time}
+            onChange={(e) =>
+              setExamForm({ ...examForm, start_time: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            type="time"
+            value={examForm.end_time}
+            onChange={(e) =>
+              setExamForm({ ...examForm, end_time: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <input
+            placeholder="Location"
+            value={examForm.location}
+            onChange={(e) =>
+              setExamForm({ ...examForm, location: e.target.value })
+            }
+            style={inputStyle}
+            required
+          />
+          <button type="submit" style={buttonStyle}>
+            Schedule
+          </button>
+        </form>
 
-    {/* Exams Table */}
-    <table style={{ width:"100%", borderCollapse:"collapse", marginTop:20 }}>
-        <thead>
-        <tr style={{ backgroundColor:"#f0f0f0", textAlign:"left" }}>
-            <th style={{ padding:"10px" }}>ID</th>
-            <th style={{ padding:"10px" }}>Class</th>
-            <th style={{ padding:"10px" }}>Type</th>
-            <th style={{ padding:"10px" }}>Date</th>
-            <th style={{ padding:"10px" }}>Start</th>
-            <th style={{ padding:"10px" }}>End</th>
-            <th style={{ padding:"10px" }}>Location</th>
-        </tr>
-        </thead>
-    <tbody>
-  {exams.map(ex => (
-    <tr key={ex.exam_id} style={{ borderBottom:"1px solid #eee" }}>
-      <td style={{ padding:"10px" }}>{ex.exam_id}</td>
-      <td style={{ padding:"10px" }}>{ex.course_name} - {ex.semester} {ex.year}</td>
-      <td style={{ padding:"10px" }}>{ex.exam_type}</td>
-      <td style={{ padding:"10px" }}>{ex.exam_date}</td>
-      <td style={{ padding:"10px" }}>{ex.start_time}</td>
-      <td style={{ padding:"10px" }}>{ex.end_time}</td>
-      <td style={{ padding:"10px" }}>{ex.location}</td>
-    </tr>
-  ))}
-</tbody>
-    </table>
-    </div>
+        {/* Exams Table */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+        >
+          <thead>
+            <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
+              <th style={{ padding: "10px" }}>ID</th>
+              <th style={{ padding: "10px" }}>Class</th>
+              <th style={{ padding: "10px" }}>Type</th>
+              <th style={{ padding: "10px" }}>Date</th>
+              <th style={{ padding: "10px" }}>Start</th>
+              <th style={{ padding: "10px" }}>End</th>
+              <th style={{ padding: "10px" }}>Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exams.map((ex) => (
+              <tr key={ex.exam_id} style={{ borderBottom: "1px solid #eee" }}>
+                <td style={{ padding: "10px" }}>{ex.exam_id}</td>
+                <td style={{ padding: "10px" }}>
+                  {ex.course_name} - {ex.semester} {ex.year}
+                </td>
+                <td style={{ padding: "10px" }}>{ex.exam_type}</td>
+                <td style={{ padding: "10px" }}>{ex.exam_date}</td>
+                <td style={{ padding: "10px" }}>{ex.start_time}</td>
+                <td style={{ padding: "10px" }}>{ex.end_time}</td>
+                <td style={{ padding: "10px" }}>{ex.location}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {/* --- FEES: TUITION RULES --- */}
       <div style={sectionStyle}>
         <h2 style={{ marginBottom: 15 }}>Tuition Rules (Credit Hour Price)</h2>
-        <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleTuitionRuleSubmit}>
+        <form
+          style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          onSubmit={handleTuitionRuleSubmit}
+        >
           <input
             type="number"
             placeholder="First College Year (e.g. 2023)"
             value={tuitionRuleForm.first_college_year}
-            onChange={(e) => setTuitionRuleForm({ ...tuitionRuleForm, first_college_year: e.target.value })}
+            onChange={(e) =>
+              setTuitionRuleForm({
+                ...tuitionRuleForm,
+                first_college_year: e.target.value,
+              })
+            }
             style={inputStyle}
             required
           />
@@ -693,14 +955,23 @@ const handleExamSubmit = (e) => {
             step="0.01"
             placeholder="Credit Hour Price"
             value={tuitionRuleForm.credit_hour_price}
-            onChange={(e) => setTuitionRuleForm({ ...tuitionRuleForm, credit_hour_price: e.target.value })}
+            onChange={(e) =>
+              setTuitionRuleForm({
+                ...tuitionRuleForm,
+                credit_hour_price: e.target.value,
+              })
+            }
             style={inputStyle}
             required
           />
-          <button type="submit" style={buttonStyle}>Save Rule</button>
+          <button type="submit" style={buttonStyle}>
+            Save Rule
+          </button>
         </form>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+        >
           <thead>
             <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
               <th style={{ padding: "10px" }}>Year</th>
@@ -712,7 +983,9 @@ const handleExamSubmit = (e) => {
             {tuitionRules.map((r) => (
               <tr key={r.rule_id} style={{ borderBottom: "1px solid #eee" }}>
                 <td style={{ padding: "10px" }}>{r.first_college_year}</td>
-                <td style={{ padding: "10px" }}>{Number(r.credit_hour_price || 0).toFixed(2)}</td>
+                <td style={{ padding: "10px" }}>
+                  {Number(r.credit_hour_price || 0).toFixed(2)}
+                </td>
                 <td style={{ padding: "10px" }}>
                   <button
                     type="button"
@@ -726,7 +999,14 @@ const handleExamSubmit = (e) => {
             ))}
             {tuitionRules.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                <td
+                  colSpan={3}
+                  style={{
+                    padding: "10px",
+                    color: "#999",
+                    textAlign: "center",
+                  }}
+                >
                   No tuition rules found.
                 </td>
               </tr>
@@ -750,12 +1030,23 @@ const handleExamSubmit = (e) => {
           </thead>
           <tbody>
             {feeComponents.map((c) => (
-              <tr key={c.component_key} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ padding: "10px", fontWeight: 700 }}>{c.component_key}</td>
+              <tr
+                key={c.component_key}
+                style={{ borderBottom: "1px solid #eee" }}
+              >
+                <td style={{ padding: "10px", fontWeight: 700 }}>
+                  {c.component_key}
+                </td>
                 <td style={{ padding: "10px" }}>
                   <input
                     value={c.label}
-                    onChange={(e) => handleFeeComponentChange(c.component_key, "label", e.target.value)}
+                    onChange={(e) =>
+                      handleFeeComponentChange(
+                        c.component_key,
+                        "label",
+                        e.target.value,
+                      )
+                    }
                     style={{ ...inputStyle, minWidth: 180 }}
                   />
                 </td>
@@ -764,7 +1055,13 @@ const handleExamSubmit = (e) => {
                     type="number"
                     step="0.01"
                     value={c.amount}
-                    onChange={(e) => handleFeeComponentChange(c.component_key, "amount", e.target.value)}
+                    onChange={(e) =>
+                      handleFeeComponentChange(
+                        c.component_key,
+                        "amount",
+                        e.target.value,
+                      )
+                    }
                     style={{ ...inputStyle, minWidth: 120 }}
                   />
                 </td>
@@ -772,11 +1069,21 @@ const handleExamSubmit = (e) => {
                   <input
                     type="checkbox"
                     checked={!!c.is_active}
-                    onChange={(e) => handleFeeComponentChange(c.component_key, "is_active", e.target.checked)}
+                    onChange={(e) =>
+                      handleFeeComponentChange(
+                        c.component_key,
+                        "is_active",
+                        e.target.checked,
+                      )
+                    }
                   />
                 </td>
                 <td style={{ padding: "10px" }}>
-                  <button type="button" style={buttonStyle} onClick={() => handleFeeComponentSave(c)}>
+                  <button
+                    type="button"
+                    style={buttonStyle}
+                    onClick={() => handleFeeComponentSave(c)}
+                  >
                     Save
                   </button>
                 </td>
@@ -784,7 +1091,14 @@ const handleExamSubmit = (e) => {
             ))}
             {feeComponents.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                <td
+                  colSpan={5}
+                  style={{
+                    padding: "10px",
+                    color: "#999",
+                    textAlign: "center",
+                  }}
+                >
                   No fee components found.
                 </td>
               </tr>
@@ -799,7 +1113,12 @@ const handleExamSubmit = (e) => {
           Registration Windows (by First College Year)
         </h2>
         <form
-          style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}
+          style={{
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
           onSubmit={handleRegistrationWindowSubmit}
         >
           <input
@@ -864,7 +1183,14 @@ const handleExamSubmit = (e) => {
             style={inputStyle}
             required
           />
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontWeight: 700,
+            }}
+          >
             <input
               type="checkbox"
               checked={!!registrationWindowForm.is_active}
@@ -882,7 +1208,9 @@ const handleExamSubmit = (e) => {
           </button>
         </form>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+        >
           <thead>
             <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
               <th style={{ padding: "10px" }}>First Year</th>
@@ -906,7 +1234,9 @@ const handleExamSubmit = (e) => {
                 <td style={{ padding: "10px" }}>
                   {w.closes_at ? new Date(w.closes_at).toLocaleString() : "N/A"}
                 </td>
-                <td style={{ padding: "10px" }}>{w.is_active ? "Yes" : "No"}</td>
+                <td style={{ padding: "10px" }}>
+                  {w.is_active ? "Yes" : "No"}
+                </td>
                 <td style={{ padding: "10px" }}>
                   <button
                     type="button"
@@ -920,7 +1250,14 @@ const handleExamSubmit = (e) => {
             ))}
             {registrationWindows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                <td
+                  colSpan={7}
+                  style={{
+                    padding: "10px",
+                    color: "#999",
+                    textAlign: "center",
+                  }}
+                >
                   No registration windows found.
                 </td>
               </tr>
@@ -936,11 +1273,16 @@ const handleExamSubmit = (e) => {
         <div style={{ display: "grid", gap: 14 }}>
           <div>
             <h3 style={{ marginBottom: 8 }}>Rooms</h3>
-            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleRoomSubmit}>
+            <form
+              style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+              onSubmit={handleRoomSubmit}
+            >
               <input
                 placeholder="Room Name"
                 value={roomForm.name}
-                onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+                onChange={(e) =>
+                  setRoomForm({ ...roomForm, name: e.target.value })
+                }
                 style={inputStyle}
                 required
               />
@@ -948,13 +1290,23 @@ const handleExamSubmit = (e) => {
                 type="number"
                 placeholder="Capacity"
                 value={roomForm.capacity}
-                onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                onChange={(e) =>
+                  setRoomForm({ ...roomForm, capacity: e.target.value })
+                }
                 style={inputStyle}
                 required
               />
-              <button type="submit" style={buttonStyle}>Add Room</button>
+              <button type="submit" style={buttonStyle}>
+                Add Room
+              </button>
             </form>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginTop: 10,
+              }}
+            >
               <thead>
                 <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
                   <th style={{ padding: "10px" }}>Room</th>
@@ -964,7 +1316,10 @@ const handleExamSubmit = (e) => {
               </thead>
               <tbody>
                 {rooms.map((r) => (
-                  <tr key={r.room_id} style={{ borderBottom: "1px solid #eee" }}>
+                  <tr
+                    key={r.room_id}
+                    style={{ borderBottom: "1px solid #eee" }}
+                  >
                     <td style={{ padding: "10px" }}>{r.name}</td>
                     <td style={{ padding: "10px" }}>{r.capacity}</td>
                     <td style={{ padding: "10px" }}>
@@ -980,7 +1335,14 @@ const handleExamSubmit = (e) => {
                 ))}
                 {rooms.length === 0 && (
                   <tr>
-                    <td colSpan={3} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                    <td
+                      colSpan={3}
+                      style={{
+                        padding: "10px",
+                        color: "#999",
+                        textAlign: "center",
+                      }}
+                    >
                       No rooms found.
                     </td>
                   </tr>
@@ -991,31 +1353,48 @@ const handleExamSubmit = (e) => {
 
           <div>
             <h3 style={{ marginBottom: 8 }}>Time Slots</h3>
-            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleSlotSubmit}>
+            <form
+              style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+              onSubmit={handleSlotSubmit}
+            >
               <input
                 placeholder="Day (e.g. Sunday)"
                 value={slotForm.day}
-                onChange={(e) => setSlotForm({ ...slotForm, day: e.target.value })}
+                onChange={(e) =>
+                  setSlotForm({ ...slotForm, day: e.target.value })
+                }
                 style={inputStyle}
                 required
               />
               <input
                 type="time"
                 value={slotForm.start_time}
-                onChange={(e) => setSlotForm({ ...slotForm, start_time: e.target.value })}
+                onChange={(e) =>
+                  setSlotForm({ ...slotForm, start_time: e.target.value })
+                }
                 style={inputStyle}
                 required
               />
               <input
                 type="time"
                 value={slotForm.end_time}
-                onChange={(e) => setSlotForm({ ...slotForm, end_time: e.target.value })}
+                onChange={(e) =>
+                  setSlotForm({ ...slotForm, end_time: e.target.value })
+                }
                 style={inputStyle}
                 required
               />
-              <button type="submit" style={buttonStyle}>Add Slot</button>
+              <button type="submit" style={buttonStyle}>
+                Add Slot
+              </button>
             </form>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginTop: 10,
+              }}
+            >
               <thead>
                 <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
                   <th style={{ padding: "10px" }}>Day</th>
@@ -1026,7 +1405,10 @@ const handleExamSubmit = (e) => {
               </thead>
               <tbody>
                 {timeSlots.map((s) => (
-                  <tr key={s.slot_id} style={{ borderBottom: "1px solid #eee" }}>
+                  <tr
+                    key={s.slot_id}
+                    style={{ borderBottom: "1px solid #eee" }}
+                  >
                     <td style={{ padding: "10px" }}>{s.day}</td>
                     <td style={{ padding: "10px" }}>{s.start_time}</td>
                     <td style={{ padding: "10px" }}>{s.end_time}</td>
@@ -1043,7 +1425,14 @@ const handleExamSubmit = (e) => {
                 ))}
                 {timeSlots.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                    <td
+                      colSpan={4}
+                      style={{
+                        padding: "10px",
+                        color: "#999",
+                        textAlign: "center",
+                      }}
+                    >
                       No time slots found.
                     </td>
                   </tr>
@@ -1053,24 +1442,42 @@ const handleExamSubmit = (e) => {
           </div>
 
           <div>
-            <h3 style={{ marginBottom: 8 }}>Professor Unavailability (Hard Constraint)</h3>
-            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleUnavailabilitySubmit}>
+            <h3 style={{ marginBottom: 8 }}>
+              Professor Unavailability (Hard Constraint)
+            </h3>
+            <form
+              style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+              onSubmit={handleUnavailabilitySubmit}
+            >
               <select
                 value={unavailabilityForm.professor_id}
-                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, professor_id: e.target.value })}
+                onChange={(e) =>
+                  setUnavailabilityForm({
+                    ...unavailabilityForm,
+                    professor_id: e.target.value,
+                  })
+                }
                 style={inputStyle}
                 required
               >
                 <option value="">Select Professor</option>
                 {professors.map((p) => (
-                  <option key={p.user_id || p.professor_id} value={p.professor_id}>
-                    {p.email}
+                  <option
+                    key={p.user_id || p.professor_id}
+                    value={p.professor_id}
+                  >
+                    {p.name || p.email}{" "}
                   </option>
                 ))}
               </select>
               <select
                 value={unavailabilityForm.slot_id}
-                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, slot_id: e.target.value })}
+                onChange={(e) =>
+                  setUnavailabilityForm({
+                    ...unavailabilityForm,
+                    slot_id: e.target.value,
+                  })
+                }
                 style={inputStyle}
                 required
               >
@@ -1084,12 +1491,25 @@ const handleExamSubmit = (e) => {
               <input
                 placeholder="Reason (optional)"
                 value={unavailabilityForm.reason}
-                onChange={(e) => setUnavailabilityForm({ ...unavailabilityForm, reason: e.target.value })}
+                onChange={(e) =>
+                  setUnavailabilityForm({
+                    ...unavailabilityForm,
+                    reason: e.target.value,
+                  })
+                }
                 style={inputStyle}
               />
-              <button type="submit" style={buttonStyle}>Add Block</button>
+              <button type="submit" style={buttonStyle}>
+                Add Block
+              </button>
             </form>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginTop: 10,
+              }}
+            >
               <thead>
                 <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
                   <th style={{ padding: "10px" }}>Professor</th>
@@ -1100,19 +1520,29 @@ const handleExamSubmit = (e) => {
               </thead>
               <tbody>
                 {professorUnavailability.map((u) => (
-                  <tr key={u.unavailability_id} style={{ borderBottom: "1px solid #eee" }}>
+                  <tr
+                    key={u.unavailability_id}
+                    style={{ borderBottom: "1px solid #eee" }}
+                  >
                     <td style={{ padding: "10px" }}>
-                      {professors.find((p) => p.professor_id === u.professor_id)?.name
-                        || professors.find((p) => p.professor_id === u.professor_id)?.email
-                        || u.professor_id}
+                      {professors.find((p) => p.professor_id === u.professor_id)
+                        ?.name ||
+                        professors.find(
+                          (p) => p.professor_id === u.professor_id,
+                        )?.email ||
+                        u.professor_id}
                     </td>
-                    <td style={{ padding: "10px" }}>{u.day} {u.start_time}-{u.end_time}</td>
+                    <td style={{ padding: "10px" }}>
+                      {u.day} {u.start_time}-{u.end_time}
+                    </td>
                     <td style={{ padding: "10px" }}>{u.reason || "-"}</td>
                     <td style={{ padding: "10px" }}>
                       <button
                         type="button"
                         style={{ ...buttonStyle, backgroundColor: "#dc2626" }}
-                        onClick={() => handleDeleteUnavailability(u.unavailability_id)}
+                        onClick={() =>
+                          handleDeleteUnavailability(u.unavailability_id)
+                        }
                       >
                         Delete
                       </button>
@@ -1121,7 +1551,14 @@ const handleExamSubmit = (e) => {
                 ))}
                 {professorUnavailability.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                    <td
+                      colSpan={4}
+                      style={{
+                        padding: "10px",
+                        color: "#999",
+                        textAlign: "center",
+                      }}
+                    >
                       No unavailability set.
                     </td>
                   </tr>
@@ -1132,32 +1569,52 @@ const handleExamSubmit = (e) => {
 
           <div>
             <h3 style={{ marginBottom: 8 }}>Run Scheduler</h3>
-            <form style={{ display: "flex", gap: 12, flexWrap: "wrap" }} onSubmit={handleRunScheduler}>
+            <form
+              style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+              onSubmit={handleRunScheduler}
+            >
               <input
                 placeholder="Semester (optional)"
                 value={scheduleParams.semester}
-                onChange={(e) => setScheduleParams({ ...scheduleParams, semester: e.target.value })}
+                onChange={(e) =>
+                  setScheduleParams({
+                    ...scheduleParams,
+                    semester: e.target.value,
+                  })
+                }
                 style={inputStyle}
               />
               <input
                 type="number"
                 placeholder="Year (optional)"
                 value={scheduleParams.year}
-                onChange={(e) => setScheduleParams({ ...scheduleParams, year: e.target.value })}
+                onChange={(e) =>
+                  setScheduleParams({ ...scheduleParams, year: e.target.value })
+                }
                 style={inputStyle}
               />
               <input
                 type="number"
                 placeholder="Population"
                 value={scheduleParams.populationSize}
-                onChange={(e) => setScheduleParams({ ...scheduleParams, populationSize: e.target.value })}
+                onChange={(e) =>
+                  setScheduleParams({
+                    ...scheduleParams,
+                    populationSize: e.target.value,
+                  })
+                }
                 style={inputStyle}
               />
               <input
                 type="number"
                 placeholder="Generations"
                 value={scheduleParams.generations}
-                onChange={(e) => setScheduleParams({ ...scheduleParams, generations: e.target.value })}
+                onChange={(e) =>
+                  setScheduleParams({
+                    ...scheduleParams,
+                    generations: e.target.value,
+                  })
+                }
                 style={inputStyle}
               />
               <input
@@ -1165,14 +1622,29 @@ const handleExamSubmit = (e) => {
                 step="0.01"
                 placeholder="Mutation Rate"
                 value={scheduleParams.mutationRate}
-                onChange={(e) => setScheduleParams({ ...scheduleParams, mutationRate: e.target.value })}
+                onChange={(e) =>
+                  setScheduleParams({
+                    ...scheduleParams,
+                    mutationRate: e.target.value,
+                  })
+                }
                 style={inputStyle}
               />
-              <button type="submit" style={buttonStyle}>Run GA</button>
-              <button type="button" style={{ ...buttonStyle, backgroundColor: "#0f766e" }} onClick={handleApplySchedule}>
+              <button type="submit" style={buttonStyle}>
+                Run GA
+              </button>
+              <button
+                type="button"
+                style={{ ...buttonStyle, backgroundColor: "#0f766e" }}
+                onClick={handleApplySchedule}
+              >
                 Apply To Classes
               </button>
-              <button type="button" style={{ ...buttonStyle, backgroundColor: "#1d4ed8" }} onClick={handlePostAnnouncement}>
+              <button
+                type="button"
+                style={{ ...buttonStyle, backgroundColor: "#1d4ed8" }}
+                onClick={handlePostAnnouncement}
+              >
                 Post Announcement
               </button>
               <button
@@ -1186,7 +1658,13 @@ const handleExamSubmit = (e) => {
             </form>
 
             {scheduleResult?.assignments?.length ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  marginTop: 10,
+                }}
+              >
                 <thead>
                   <tr style={{ backgroundColor: "#f0f0f0", textAlign: "left" }}>
                     <th style={{ padding: "10px" }}>Class</th>
@@ -1200,10 +1678,15 @@ const handleExamSubmit = (e) => {
                 </thead>
                 <tbody>
                   {scheduleResult.assignments.map((a, idx) => (
-                    <tr key={`${a.class_id}-${idx}`} style={{ borderBottom: "1px solid #eee" }}>
+                    <tr
+                      key={`${a.class_id}-${idx}`}
+                      style={{ borderBottom: "1px solid #eee" }}
+                    >
                       <td style={{ padding: "10px" }}>{a.class_id}</td>
                       <td style={{ padding: "10px" }}>{a.course_code}</td>
-                      <td style={{ padding: "10px" }}>{a.professor_name || a.professor_id || "-"}</td>
+                      <td style={{ padding: "10px" }}>
+                        {a.professor_name || a.professor_id || "-"}
+                      </td>
                       <td style={{ padding: "10px" }}>{a.day}</td>
                       <td style={{ padding: "10px" }}>{a.start}</td>
                       <td style={{ padding: "10px" }}>{a.end}</td>
@@ -1213,14 +1696,20 @@ const handleExamSubmit = (e) => {
                 </tbody>
               </table>
             ) : (
-              <div style={{ marginTop: 10, color: "#6b7280" }}>No schedule generated yet.</div>
+              <div style={{ marginTop: 10, color: "#6b7280" }}>
+                No schedule generated yet.
+              </div>
             )}
 
             {scheduleResult?.conflicts?.length ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>Conflict Report</div>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>
+                  Conflict Report
+                </div>
                 <div style={{ marginBottom: 6, fontSize: 13 }}>
-                  {Object.entries(conflictSummary(scheduleResult.conflicts)).map(([k, v]) => (
+                  {Object.entries(
+                    conflictSummary(scheduleResult.conflicts),
+                  ).map(([k, v]) => (
                     <span key={k} style={{ marginRight: 10 }}>
                       {k}: {v}
                     </span>
@@ -1229,7 +1718,13 @@ const handleExamSubmit = (e) => {
                 <ul style={{ margin: 0, paddingLeft: 16 }}>
                   {scheduleResult.conflicts.slice(0, 20).map((c, idx) => (
                     <li key={idx} style={{ marginBottom: 4 }}>
-                      {c.type} {c.class_id ? `for class ${c.class_id}` : ""} {c.key ? `(${c.key})` : ""}
+                      {c.type === "PROFESSOR_CONFLICT"
+                        ? `${c.professor_name || c.professor_id} conflict at ${c.day} ${c.start}-${c.end}`
+                        : c.type === "ROOM_CONFLICT"
+                          ? `Room conflict in ${c.room_name || c.room_id} at ${c.day} ${c.start}-${c.end}`
+                          : c.type === "CAPACITY_EXCEEDED"
+                            ? `Capacity exceeded for class ${c.class_id}: needs ${c.needed}, room ${c.room_name || c.room_id} has ${c.capacity}`
+                            : c.type}
                     </li>
                   ))}
                 </ul>
@@ -1239,41 +1734,121 @@ const handleExamSubmit = (e) => {
             {(() => {
               const gridData = buildScheduleGrid();
               if (!gridData) return null;
+
               return (
-                <div style={{ marginTop: 12, border: "1px solid #d1d5db", overflowX: "auto" }}>
-                  <table style={{ borderCollapse: "collapse", minWidth: 900, width: "100%" }}>
+                <div
+                  style={{
+                    marginTop: 12,
+                    border: "1px solid #d1d5db",
+                    overflowX: "auto",
+                    overflowY: "hidden",
+                    maxWidth: "100%",
+                    width: "100%",
+                  }}
+                >
+                  <table
+                    style={{
+                      borderCollapse: "collapse",
+                      width: "max-content",
+                      minWidth: "max-content",
+                    }}
+                  >
                     <thead>
                       <tr>
-                        <th style={{ border: "1px solid #9ca3af", padding: "8px", background: "#dbeafe" }}>
+                        <th
+                          style={{
+                            border: "1px solid #9ca3af",
+                            padding: "8px",
+                            background: "#dbeafe",
+                            minWidth: "120px",
+                            position: "sticky",
+                            left: 0,
+                            zIndex: 2,
+                          }}
+                        >
                           Day / Time
                         </th>
-                        {gridData.slotLabels.map((s) => (
+
+                        {gridData.slotLabels.map((slot) => (
                           <th
-                            key={s.key}
-                            style={{ border: "1px solid #9ca3af", padding: "6px", background: "#dbeafe", fontSize: 12 }}
+                            key={slot.key}
+                            style={{
+                              border: "1px solid #9ca3af",
+                              padding: "6px",
+                              background: "#dbeafe",
+                              fontSize: 11,
+                              minWidth: "140px",
+                              textAlign: "center",
+                            }}
                           >
-                            {s.label}
+                            {slot.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
+
                     <tbody>
                       {gridData.days.map((day) => (
                         <tr key={day}>
-                          <td style={{ border: "1px solid #9ca3af", padding: "8px", fontWeight: 900 }}>
+                          <td
+                            style={{
+                              border: "1px solid #9ca3af",
+                              padding: "8px",
+                              fontWeight: 700,
+                              background: "#f9fafb",
+                              minWidth: "120px",
+                              position: "sticky",
+                              left: 0,
+                              zIndex: 1,
+                            }}
+                          >
                             {day}
                           </td>
+
                           {gridData.slotLabels.map((slot) => {
-                            const entries = gridData.grid.get(`${day}_${slot.start}_${slot.end}`) || [];
+                            const entries =
+                              gridData.grid.get(
+                                `${day}_${slot.start}_${slot.end}`,
+                              ) || [];
+
                             return (
-                              <td key={`${day}-${slot.key}`} style={{ border: "1px solid #9ca3af", padding: "6px", fontSize: 12 }}>
-                                {entries.map((a) => (
-                                  <div key={`${a.class_id}-${a.start}`} style={{ marginBottom: 4 }}>
-                                    <div style={{ fontWeight: 900 }}>{a.course_code}</div>
-                                    <div>{a.room_name}</div>
-                                    <div>{a.professor_name || a.professor_id || "-"}</div>
-                                  </div>
-                                ))}
+                              <td
+                                key={`${day}-${slot.key}`}
+                                style={{
+                                  border: "1px solid #9ca3af",
+                                  padding: "6px",
+                                  minWidth: "140px",
+                                  verticalAlign: "top",
+                                  fontSize: 11,
+                                }}
+                              >
+                                {entries.length === 0
+                                  ? null
+                                  : entries.map((a) => (
+                                      <div
+                                        key={`${a.class_id}-${a.start}-${a.room_name}`}
+                                        style={{
+                                          marginBottom: 6,
+                                          paddingBottom: 4,
+                                          borderBottom: "1px solid #e5e7eb",
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: 700 }}>
+                                          {a.course_code}
+                                        </div>
+                                        <div style={{ fontSize: 10 }}>
+                                          {a.professor_name || "-"}
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: 10,
+                                            color: "#374151",
+                                          }}
+                                        >
+                                          {a.room_name}
+                                        </div>
+                                      </div>
+                                    ))}
                               </td>
                             );
                           })}
@@ -1303,7 +1878,11 @@ const handleExamSubmit = (e) => {
                 {scheduleRuns.map((r) => (
                   <tr key={r.run_id} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "10px" }}>{r.run_id}</td>
-                    <td style={{ padding: "10px" }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</td>
+                    <td style={{ padding: "10px" }}>
+                      {r.created_at
+                        ? new Date(r.created_at).toLocaleString()
+                        : ""}
+                    </td>
                     <td style={{ padding: "10px" }}>{r.semester || "-"}</td>
                     <td style={{ padding: "10px" }}>{r.year || "-"}</td>
                     <td style={{ padding: "10px" }}>{r.best_score}</td>
@@ -1320,7 +1899,14 @@ const handleExamSubmit = (e) => {
                 ))}
                 {scheduleRuns.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "10px", color: "#999", textAlign: "center" }}>
+                    <td
+                      colSpan={6}
+                      style={{
+                        padding: "10px",
+                        color: "#999",
+                        textAlign: "center",
+                      }}
+                    >
                       No schedule runs yet.
                     </td>
                   </tr>
