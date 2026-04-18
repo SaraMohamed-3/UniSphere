@@ -12,7 +12,6 @@ const registrationRoutes = require("./modules/registration/registrationRoutes");
 const feesRoutes = require("./modules/fees/feesRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const schedulerRoutes = require("./modules/scheduler/schedulerRoutes");
-const schedulerRoutes = require("./modules/scheduler/schedulerRoutes");
 const academicMonitoringRoutes = require("./routes/academicMonitoringRoutes");
 const messagingRoutes = require("./routes/messagingRoutes");
 const notificationsRoutes = require("./routes/notificationsRoutes");
