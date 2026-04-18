@@ -12,6 +12,10 @@ const registrationRoutes = require("./modules/registration/registrationRoutes");
 const feesRoutes = require("./modules/fees/feesRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const schedulerRoutes = require("./modules/scheduler/schedulerRoutes");
+const academicMonitoringRoutes = require("./routes/academicMonitoringRoutes");
+const messagingRoutes = require("./routes/messagingRoutes");
+const notificationsRoutes = require("./routes/notificationsRoutes");
+const studentChatbotRoutes = require("./modules/studentChatbot/chatbotRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -31,6 +35,10 @@ app.use("/api/student/registration", registrationRoutes);
 app.use("/api/student/fees", feesRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/scheduler", schedulerRoutes);
+app.use("/api/academic-monitoring", academicMonitoringRoutes);
+app.use("/api/messages", messagingRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/student/chatbot", studentChatbotRoutes);
 // Fallback
 app.use((req, res) => {
   res.status(404).json({

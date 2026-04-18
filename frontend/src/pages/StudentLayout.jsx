@@ -1,9 +1,15 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 export default function StudentLayout() {
   const nav = useNavigate();
   const location = useLocation();
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [activeFlags, setActiveFlags] = useState(0);
 
   const itemStyle = (active) => ({
     padding: "10px 12px",
@@ -16,10 +22,104 @@ export default function StudentLayout() {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
   });
 
-  const isActive = (path) =>
-    location.pathname === path || location.pathname.startsWith(path + "/");
+  const pillStyle = (highlight) => ({
+    minWidth: 22,
+    height: 22,
+    padding: "0 7px",
+    borderRadius: 999,
+    background: highlight ? "#dc2626" : "#e5e7eb",
+    color: highlight ? "#fff" : "#374151",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 12,
+    fontWeight: 900,
+    lineHeight: 1,
+  });
+
+  const isActive = (path) => {
+    if (path === "/student") {
+      return location.pathname === "/student";
+    }
+    return location.pathname === path || location.pathname.startsWith(path + "/");
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHeaderData = async () => {
+      try {
+        const [notificationRes, conversationRes, academicRes] = await Promise.all([
+          api.get("/notifications?limit=6"),
+          api.get("/messages/conversations"),
+          api.get("/academic-monitoring/my-flags"),
+        ]);
+
+        if (!mounted) return;
+
+        const notificationPayload = notificationRes.data || {};
+        const conversationPayload = conversationRes.data || {};
+        const academicPayload = academicRes.data || {};
+
+        setNotifications(notificationPayload.notifications || []);
+        setUnreadNotifications(Number(notificationPayload.unreadCount || 0));
+        setUnreadMessages(
+          (conversationPayload.conversations || []).reduce(
+            (sum, convo) => sum + Number(convo.unread_count || 0),
+            0,
+          ),
+        );
+        setActiveFlags(Number(academicPayload.activeCount || 0));
+      } catch {
+        if (!mounted) return;
+        setNotifications([]);
+        setUnreadNotifications(0);
+        setUnreadMessages(0);
+      }
+    };
+
+    loadHeaderData();
+    const timer = setInterval(loadHeaderData, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [location.pathname]);
+
+  const openNotification = async (notification) => {
+    try {
+      if (!notification.is_read) {
+        await api.patch(`/notifications/${notification.notification_id}/read`);
+        setNotifications((current) =>
+          current.map((item) =>
+            item.notification_id === notification.notification_id
+              ? { ...item, is_read: true }
+              : item,
+          ),
+        );
+        setUnreadNotifications((current) => Math.max(0, current - 1));
+      }
+    } catch {}
+
+    setNotificationOpen(false);
+    if (notification.route) {
+      nav(notification.route);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await api.patch("/notifications/read-all");
+      setNotifications((current) =>
+        current.map((item) => ({ ...item, is_read: true })),
+      );
+      setUnreadNotifications(0);
+    } catch {}
+  };
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -29,10 +129,7 @@ export default function StudentLayout() {
   };
 
   return (
-    <div
-      style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}
-    >
-      {/* SIDEBAR */}
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
       <aside
         className="student-sidebar"
         style={{
@@ -66,12 +163,10 @@ export default function StudentLayout() {
           </div>
           <div>
             <div style={{ fontWeight: 900 }}>Student Portal</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Academic Dashboard
-            </div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Academic Dashboard</div>
           </div>
         </div>
-        {/* Profile tab */}
+
         <div
           style={itemStyle(isActive("/student/profile"))}
           onClick={() => nav("/student/profile")}
@@ -79,10 +174,7 @@ export default function StudentLayout() {
           <span>My Profile</span>
         </div>
 
-        <div
-          style={itemStyle(isActive("/student"))}
-          onClick={() => nav("/student")}
-        >
+        <div style={itemStyle(isActive("/student"))} onClick={() => nav("/student")}>
           <span>Dashboard</span>
         </div>
 
@@ -94,10 +186,40 @@ export default function StudentLayout() {
         </div>
 
         <div
+          style={itemStyle(isActive("/student/assignments"))}
+          onClick={() => nav("/student/assignments")}
+        >
+          <span>Assignments</span>
+        </div>
+
+        <div
           style={itemStyle(isActive("/student/grades"))}
           onClick={() => nav("/student/grades")}
         >
           <span>Grades</span>
+        </div>
+
+        <div
+          style={itemStyle(isActive("/student/academic-status"))}
+          onClick={() => nav("/student/academic-status")}
+        >
+          <span>Academic Status</span>
+          {activeFlags > 0 ? <span style={pillStyle(true)}>{activeFlags}</span> : null}
+        </div>
+
+        <div
+          style={itemStyle(isActive("/student/assistant"))}
+          onClick={() => nav("/student/assistant")}
+        >
+          <span>AI Assistant</span>
+        </div>
+
+        <div
+          style={itemStyle(isActive("/student/messages"))}
+          onClick={() => nav("/student/messages")}
+        >
+          <span>Messages</span>
+          {unreadMessages > 0 ? <span style={pillStyle(false)}>{unreadMessages}</span> : null}
         </div>
 
         <div
@@ -128,7 +250,6 @@ export default function StudentLayout() {
           <span>Transcript</span>
         </div>
 
-        {/* Announcements tab */}
         <div
           style={itemStyle(isActive("/student/announcements"))}
           onClick={() => nav("/student/announcements")}
@@ -137,9 +258,7 @@ export default function StudentLayout() {
         </div>
       </aside>
 
-      {/* MAIN */}
       <div className="student-main" style={{ flex: 1, background: "#f5f7fb" }}>
-        {/* TOP BAR */}
         <div
           className="student-topbar"
           style={{
@@ -151,8 +270,119 @@ export default function StudentLayout() {
             justifyContent: "flex-end",
             padding: "0 18px",
             gap: 10,
+            position: "relative",
           }}
         >
+          <button
+            onClick={() => setNotificationOpen((open) => !open)}
+            style={{
+              border: "1px solid #e5e7eb",
+              background: "#fff",
+              padding: "8px 12px",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontWeight: 700,
+              position: "relative",
+            }}
+          >
+            Notifications
+            {unreadNotifications > 0 ? (
+              <span
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -6,
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 999,
+                  background: "#dc2626",
+                  color: "#fff",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 900,
+                }}
+              >
+                {unreadNotifications}
+              </span>
+            ) : null}
+          </button>
+
+          {notificationOpen ? (
+            <div
+              style={{
+                position: "absolute",
+                right: 112,
+                top: 56,
+                width: 360,
+                background: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: 14,
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.12)",
+                zIndex: 30,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 16px",
+                  borderBottom: "1px solid #f3f4f6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <strong>Notifications</strong>
+                <button
+                  onClick={markAllNotificationsRead}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "#1d4ed8",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  Mark all read
+                </button>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div style={{ padding: 18, color: "#6b7280", fontSize: 14 }}>
+                  No notifications yet.
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <button
+                    key={notification.notification_id}
+                    onClick={() => openNotification(notification)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      border: "none",
+                      borderBottom: "1px solid #f9fafb",
+                      background: notification.is_read ? "#fff" : "#eff6ff",
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: "#111827", marginBottom: 4 }}>
+                      {notification.title}
+                    </div>
+                    <div style={{ color: "#4b5563", fontSize: 13, marginBottom: 4 }}>
+                      {notification.body}
+                    </div>
+                    <div style={{ color: "#9ca3af", fontSize: 12 }}>
+                      {new Date(notification.created_at).toLocaleString()}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+
           <button
             onClick={logout}
             style={{
@@ -168,7 +398,6 @@ export default function StudentLayout() {
           </button>
         </div>
 
-        {/* PAGE CONTENT */}
         <div className="student-content">
           <Outlet />
         </div>
