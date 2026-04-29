@@ -4,8 +4,150 @@ const router = express.Router();
 const db = require("../data/db");
 const { verifyJWT, professorOnly } = require("../middleware/auth");
 
+const PROFESSOR_DASHBOARD_CACHE_TTL_MS = 30 * 1000;
+const PROFESSOR_ASSIGNMENT_SUBMISSIONS_CACHE_TTL_MS = 30 * 1000;
+const PROFESSOR_CLASS_GRADES_CACHE_TTL_MS = 30 * 1000;
+const PROFESSOR_CLASS_ATTENDANCE_CACHE_TTL_MS = 30 * 1000;
+const professorDashboardCache = new Map();
+const professorAssignmentSubmissionsCache = new Map();
+const professorClassGradesCache = new Map();
+const professorClassAttendanceCache = new Map();
+
 function getUserId(req) {
   return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+}
+
+function getProfessorDashboardCacheKey(userId) {
+  return `professor-dashboard:${userId}`;
+}
+
+function getCachedProfessorDashboard(userId) {
+  const key = getProfessorDashboardCacheKey(userId);
+  const cached = professorDashboardCache.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    professorDashboardCache.delete(key);
+    return null;
+  }
+
+  return cached.payload;
+}
+
+function setCachedProfessorDashboard(userId, payload) {
+  professorDashboardCache.set(getProfessorDashboardCacheKey(userId), {
+    payload,
+    expiresAt: Date.now() + PROFESSOR_DASHBOARD_CACHE_TTL_MS,
+  });
+}
+
+function invalidateProfessorDashboardCache(userId) {
+  if (!userId) {
+    return;
+  }
+  professorDashboardCache.delete(getProfessorDashboardCacheKey(userId));
+}
+
+function getProfessorAssignmentSubmissionsCacheKey(userId, assignmentId) {
+  return `professor-assignment-submissions:${userId}:${assignmentId}`;
+}
+
+function getCachedProfessorAssignmentSubmissions(userId, assignmentId) {
+  const key = getProfessorAssignmentSubmissionsCacheKey(userId, assignmentId);
+  const cached = professorAssignmentSubmissionsCache.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    professorAssignmentSubmissionsCache.delete(key);
+    return null;
+  }
+
+  return cached.payload;
+}
+
+function setCachedProfessorAssignmentSubmissions(userId, assignmentId, payload) {
+  professorAssignmentSubmissionsCache.set(
+    getProfessorAssignmentSubmissionsCacheKey(userId, assignmentId),
+    {
+      payload,
+      expiresAt: Date.now() + PROFESSOR_ASSIGNMENT_SUBMISSIONS_CACHE_TTL_MS,
+    },
+  );
+}
+
+function invalidateProfessorAssignmentSubmissionsCache(userId, assignmentId) {
+  if (!userId || !assignmentId) {
+    return;
+  }
+  professorAssignmentSubmissionsCache.delete(
+    getProfessorAssignmentSubmissionsCacheKey(userId, assignmentId),
+  );
+}
+
+function getProfessorClassGradesCacheKey(userId, classId) {
+  return `professor-class-grades:${userId}:${classId}`;
+}
+
+function getCachedProfessorClassGrades(userId, classId) {
+  const key = getProfessorClassGradesCacheKey(userId, classId);
+  const cached = professorClassGradesCache.get(key);
+  if (!cached) {
+    return null;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    professorClassGradesCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedProfessorClassGrades(userId, classId, payload) {
+  professorClassGradesCache.set(getProfessorClassGradesCacheKey(userId, classId), {
+    payload,
+    expiresAt: Date.now() + PROFESSOR_CLASS_GRADES_CACHE_TTL_MS,
+  });
+}
+
+function invalidateProfessorClassGradesCache(userId, classId) {
+  if (!userId || !classId) {
+    return;
+  }
+  professorClassGradesCache.delete(getProfessorClassGradesCacheKey(userId, classId));
+}
+
+function getProfessorClassAttendanceCacheKey(userId, classId) {
+  return `professor-class-attendance:${userId}:${classId}`;
+}
+
+function getCachedProfessorClassAttendance(userId, classId) {
+  const key = getProfessorClassAttendanceCacheKey(userId, classId);
+  const cached = professorClassAttendanceCache.get(key);
+  if (!cached) {
+    return null;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    professorClassAttendanceCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedProfessorClassAttendance(userId, classId, payload) {
+  professorClassAttendanceCache.set(getProfessorClassAttendanceCacheKey(userId, classId), {
+    payload,
+    expiresAt: Date.now() + PROFESSOR_CLASS_ATTENDANCE_CACHE_TTL_MS,
+  });
+}
+
+function invalidateProfessorClassAttendanceCache(userId, classId) {
+  if (!userId || !classId) {
+    return;
+  }
+  professorClassAttendanceCache.delete(getProfessorClassAttendanceCacheKey(userId, classId));
 }
 
 async function tableExists(tableName) {
@@ -26,6 +168,22 @@ async function getProfessorIdByUserId(userId) {
   return r.rows[0]?.professor_id || null;
 }
 
+async function getAssignmentIdBySubmissionId(submissionId) {
+  const r = await db.query(
+    `SELECT assignment_id FROM assignment_submissions WHERE submission_id = $1`,
+    [submissionId],
+  );
+  return r.rows[0]?.assignment_id || null;
+}
+
+async function getClassIdByEnrollmentId(enrollmentId) {
+  const r = await db.query(
+    `SELECT class_id FROM enrollments WHERE enrollment_id = $1`,
+    [enrollmentId],
+  );
+  return r.rows[0]?.class_id || null;
+}
+
 async function assertAssignmentsSchema() {
   const [assignmentsOk, submissionsOk] = await Promise.all([
     tableExists("assignments"),
@@ -44,16 +202,24 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    // Get professor info and department
-    const profRes = await db.query(
-      `
-      SELECT p.professor_id, d.name AS department_name
-      FROM professors p
-      JOIN departments d ON d.department_id = p.department_id
-      WHERE p.user_id = $1
-      `,
-      [userId]
-    );
+    const cachedResponse = getCachedProfessorDashboard(userId);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
+
+    const dayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    const [profRes, assignmentsSchemaOk] = await Promise.all([
+      db.query(
+        `
+        SELECT p.professor_id, d.name AS department_name
+        FROM professors p
+        JOIN departments d ON d.department_id = p.department_id
+        WHERE p.user_id = $1
+        `,
+        [userId],
+      ),
+      assertAssignmentsSchema(),
+    ]);
 
     if (profRes.rows.length === 0) {
       return res.status(404).json({ message: "Professor profile not found" });
@@ -62,45 +228,53 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
     const professor = profRes.rows[0];
     const professorId = professor.professor_id;
 
-    // Active Courses
-    const classesRes = await db.query(
-      `SELECT COUNT(*)::int as count FROM classes WHERE professor_id = $1`,
-      [professorId]
-    );
-    const activeCourses = classesRes.rows[0].count;
-
-    // Total Students
-    const studentsRes = await db.query(
+    const summaryQuery = db.query(
       `
-      SELECT COUNT(DISTINCT e.student_id)::int as count
-      FROM enrollments e
-      JOIN classes c ON e.class_id = c.class_id
-      WHERE c.professor_id = $1
+      WITH professor_classes AS (
+        SELECT class_id, day
+        FROM classes
+        WHERE professor_id = $1
+      ),
+      professor_enrollments AS (
+        SELECT e.enrollment_id, e.student_id, e.class_id
+        FROM enrollments e
+        JOIN professor_classes pc ON pc.class_id = e.class_id
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM professor_classes) AS active_courses,
+        (SELECT COUNT(DISTINCT student_id)::int FROM professor_enrollments) AS total_students,
+        (
+          SELECT COUNT(*)::int
+          FROM professor_enrollments pe
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM grades g
+            WHERE g.enrollment_id = pe.enrollment_id
+          )
+        ) AS pending_grading,
+        (
+          SELECT COUNT(*)::int
+          FROM professor_enrollments pe
+          JOIN professor_classes pc ON pc.class_id = pe.class_id
+          WHERE pc.day = $2
+            AND NOT EXISTS (
+              SELECT 1
+              FROM attendance a
+              WHERE a.enrollment_id = pe.enrollment_id
+                AND a.class_date = CURRENT_DATE
+            )
+        ) AS pending_attendance,
+        (
+          SELECT COUNT(*)::int
+          FROM course_announcements ca
+          JOIN professor_classes pc ON pc.class_id = ca.class_id
+          WHERE ca.is_published = FALSE
+        ) AS pending_announcements
       `,
-      [professorId]
+      [professorId, dayName],
     );
-    const totalStudents = studentsRes.rows[0].count;
 
-    // Pending Grading
-    const pendingGradingRes = await db.query(
-      `
-      SELECT COUNT(*)::int AS count
-      FROM enrollments e
-      JOIN classes c ON c.class_id = e.class_id
-      WHERE c.professor_id = $1
-        AND NOT EXISTS (
-          SELECT 1
-          FROM grades g
-          WHERE g.enrollment_id = e.enrollment_id
-        )
-      `,
-      [professorId]
-    );
-    const pendingGrading = pendingGradingRes.rows[0]?.count ?? 0;
-
-    // Classes Today
-    const dayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
-    const todayClassesRes = await db.query(
+    const todayClassesQuery = db.query(
       `
       SELECT c.class_id, co.name, co.code, c.time_start, c.time_end, c.location, COUNT(e.student_id) as enrolled
       FROM classes c
@@ -110,10 +284,10 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       GROUP BY c.class_id, co.name, co.code, c.time_start, c.time_end, c.location
       ORDER BY c.time_start
       `,
-      [professorId, dayName]
+      [professorId, dayName],
     );
 
-    const recentActivityRes = await db.query(
+    const recentActivityQuery = db.query(
       `
       SELECT *
       FROM (
@@ -153,7 +327,7 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       [professorId],
     );
 
-    const coursePerfRes = await db.query(
+    const coursePerfQuery = db.query(
       `
       SELECT
         c.class_id,
@@ -184,74 +358,70 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       [professorId],
     );
 
-    const pendingAttendanceRes = await db.query(
-      `
-      SELECT COUNT(*)::int AS count
-      FROM enrollments e
-      JOIN classes c ON c.class_id = e.class_id
-      WHERE c.professor_id = $1
-        AND c.day = $2
-        AND NOT EXISTS (
-          SELECT 1
-          FROM attendance a
-          WHERE a.enrollment_id = e.enrollment_id
-            AND a.class_date = CURRENT_DATE
-        )
-      `,
-      [professorId, dayName],
-    );
-
-    const pendingAnnouncementsRes = await db.query(
-      `
-      SELECT COUNT(*)::int AS count
-      FROM course_announcements ca
-      JOIN classes c ON c.class_id = ca.class_id
-      WHERE c.professor_id = $1
-        AND ca.is_published = FALSE
-      `,
-      [professorId],
-    );
-
-    const assignmentsSchemaOk = await assertAssignmentsSchema();
     let pendingAssignmentReviews = 0;
     let recentSubmissionRows = [];
+    const assignmentMetricsQuery = assignmentsSchemaOk
+      ? Promise.all([
+          db.query(
+            `
+            SELECT COUNT(*)::int AS count
+            FROM assignment_submissions s
+            JOIN assignments a ON a.assignment_id = s.assignment_id
+            JOIN classes c ON c.class_id = a.class_id
+            WHERE c.professor_id = $1
+              AND LOWER(COALESCE(s.status, 'submitted')) = 'submitted'
+            `,
+            [professorId],
+          ),
+          db.query(
+            `
+            SELECT
+              s.submitted_at AS ts,
+              co.code AS course_code,
+              co.name AS course_name,
+              u.email AS student_email,
+              a.title AS assignment_title
+            FROM assignment_submissions s
+            JOIN assignments a ON a.assignment_id = s.assignment_id
+            JOIN classes c ON c.class_id = a.class_id
+            JOIN courses co ON co.course_id = c.course_id
+            JOIN students st ON st.student_id = s.student_id
+            JOIN users u ON u.user_id = st.user_id
+            WHERE c.professor_id = $1
+            ORDER BY s.submitted_at DESC
+            LIMIT 8
+            `,
+            [professorId],
+          ),
+        ])
+      : Promise.resolve([null, null]);
+
+    const [
+      summaryRes,
+      todayClassesRes,
+      recentActivityRes,
+      coursePerfRes,
+      assignmentMetrics,
+    ] = await Promise.all([
+      summaryQuery,
+      todayClassesQuery,
+      recentActivityQuery,
+      coursePerfQuery,
+      assignmentMetricsQuery,
+    ]);
+
     if (assignmentsSchemaOk) {
-      const [pendingAssignmentRes, recentAssignmentSubmissionsRes] = await Promise.all([
-        db.query(
-          `
-          SELECT COUNT(*)::int AS count
-          FROM assignment_submissions s
-          JOIN assignments a ON a.assignment_id = s.assignment_id
-          JOIN classes c ON c.class_id = a.class_id
-          WHERE c.professor_id = $1
-            AND LOWER(COALESCE(s.status, 'submitted')) = 'submitted'
-          `,
-          [professorId],
-        ),
-        db.query(
-          `
-          SELECT
-            s.submitted_at AS ts,
-            co.code AS course_code,
-            co.name AS course_name,
-            u.email AS student_email,
-            a.title AS assignment_title
-          FROM assignment_submissions s
-          JOIN assignments a ON a.assignment_id = s.assignment_id
-          JOIN classes c ON c.class_id = a.class_id
-          JOIN courses co ON co.course_id = c.course_id
-          JOIN students st ON st.student_id = s.student_id
-          JOIN users u ON u.user_id = st.user_id
-          WHERE c.professor_id = $1
-          ORDER BY s.submitted_at DESC
-          LIMIT 8
-          `,
-          [professorId],
-        ),
-      ]);
+      const [pendingAssignmentRes, recentAssignmentSubmissionsRes] = assignmentMetrics;
       pendingAssignmentReviews = Number(pendingAssignmentRes.rows[0]?.count || 0);
       recentSubmissionRows = recentAssignmentSubmissionsRes.rows;
     }
+
+    const summary = summaryRes.rows[0] || {};
+    const activeCourses = Number(summary.active_courses || 0);
+    const totalStudents = Number(summary.total_students || 0);
+    const pendingGrading = Number(summary.pending_grading || 0);
+    const pendingAttendance = Number(summary.pending_attendance || 0);
+    const pendingAnnouncements = Number(summary.pending_announcements || 0);
 
     const submissions = recentActivityRes.rows.map((r) => ({
       title:
@@ -280,13 +450,13 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       {
         key: "attendance",
         title: "Attendance Not Marked Today",
-        count: Number(pendingAttendanceRes.rows[0]?.count || 0),
+        count: pendingAttendance,
         route: "/professor/attendance",
       },
       {
         key: "announcements",
         title: "Unpublished Course Announcements",
-        count: Number(pendingAnnouncementsRes.rows[0]?.count || 0),
+        count: pendingAnnouncements,
         route: "/professor/announcements",
       },
       {
@@ -297,7 +467,7 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       },
     ];
 
-    res.json({
+    const responsePayload = {
       header: {
         title: "Professor Portal",
         subtitle: "Overview of your teaching workload",
@@ -327,7 +497,10 @@ router.get("/dashboard", verifyJWT, professorOnly, async (req, res) => {
       submissions,
       coursePerformance,
       pendingTasks,
-    });
+    };
+
+    setCachedProfessorDashboard(userId, responsePayload);
+    res.json(responsePayload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
@@ -457,6 +630,10 @@ router.get("/classes/:classId/grades", verifyJWT, professorOnly, async (req, res
   try {
     const classId = parseInt(req.params.classId, 10);
     const userId = getUserId(req);
+    const cachedResponse = getCachedProfessorClassGrades(userId, classId);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
 
     const classRes = await db.query(
       `SELECT c.class_id FROM classes c JOIN professors p ON c.professor_id = p.professor_id WHERE c.class_id = $1 AND p.user_id = $2`,
@@ -479,6 +656,7 @@ router.get("/classes/:classId/grades", verifyJWT, professorOnly, async (req, res
       [classId]
     );
 
+    setCachedProfessorClassGrades(userId, classId, result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -496,7 +674,7 @@ router.post("/grades", verifyJWT, professorOnly, async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
 
     const verifyRes = await db.query(
-      `SELECT e.enrollment_id FROM enrollments e
+      `SELECT e.enrollment_id, e.class_id FROM enrollments e
        JOIN classes c ON e.class_id = c.class_id
        JOIN professors p ON c.professor_id = p.professor_id
        WHERE e.enrollment_id = $1 AND p.user_id = $2`,
@@ -525,6 +703,8 @@ router.post("/grades", verifyJWT, professorOnly, async (req, res) => {
       );
     }
 
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorClassGradesCache(userId, verifyRes.rows[0]?.class_id);
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -539,6 +719,10 @@ router.get("/classes/:classId/attendance", verifyJWT, professorOnly, async (req,
   try {
     const classId = parseInt(req.params.classId, 10);
     const userId = getUserId(req);
+    const cachedResponse = getCachedProfessorClassAttendance(userId, classId);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
 
     const classRes = await db.query(
       `SELECT c.class_id FROM classes c JOIN professors p ON c.professor_id = p.professor_id WHERE c.class_id = $1 AND p.user_id = $2`,
@@ -560,6 +744,7 @@ router.get("/classes/:classId/attendance", verifyJWT, professorOnly, async (req,
       `,
       [classId]
     );
+    setCachedProfessorClassAttendance(userId, classId, result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -581,7 +766,7 @@ router.post("/attendance", verifyJWT, professorOnly, async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
 
     const verifyRes = await db.query(
-      `SELECT e.enrollment_id FROM enrollments e
+      `SELECT e.enrollment_id, e.class_id FROM enrollments e
        JOIN classes c ON e.class_id = c.class_id
        JOIN professors p ON c.professor_id = p.professor_id
        WHERE e.enrollment_id = $1 AND p.user_id = $2`,
@@ -610,6 +795,8 @@ router.post("/attendance", verifyJWT, professorOnly, async (req, res) => {
       );
     }
 
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorClassAttendanceCache(userId, verifyRes.rows[0]?.class_id);
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -669,6 +856,7 @@ router.post("/announcements", verifyJWT, professorOnly, async (req, res) => {
       [classId, title, body, userId, isPublished !== false]
     );
 
+    invalidateProfessorDashboardCache(userId);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -699,6 +887,7 @@ router.put("/announcements/:announcementId", verifyJWT, professorOnly, async (re
       [title, body, isPublished !== false, announcementId]
     );
 
+    invalidateProfessorDashboardCache(userId);
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -723,6 +912,7 @@ router.delete("/announcements/:announcementId", verifyJWT, professorOnly, async 
       return res.status(403).json({ message: "Access denied" });
 
     await db.query(`DELETE FROM course_announcements WHERE announcement_id=$1`, [announcementId]);
+    invalidateProfessorDashboardCache(userId);
     res.json({ message: "Announcement deleted" });
   } catch (err) {
     console.error(err);
@@ -833,6 +1023,8 @@ router.post("/assignments", verifyJWT, professorOnly, async (req, res) => {
         isPublished !== false,
       ],
     );
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorAssignmentSubmissionsCache(userId, result.rows[0]?.assignment_id);
     return res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -895,6 +1087,8 @@ router.put("/assignments/:assignmentId", verifyJWT, professorOnly, async (req, r
         assignmentId,
       ],
     );
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorAssignmentSubmissionsCache(userId, assignmentId);
     return res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
@@ -929,6 +1123,8 @@ router.delete("/assignments/:assignmentId", verifyJWT, professorOnly, async (req
     }
 
     await db.query(`DELETE FROM assignments WHERE assignment_id = $1`, [assignmentId]);
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorAssignmentSubmissionsCache(userId, assignmentId);
     return res.json({ message: "Assignment deleted" });
   } catch (err) {
     console.error(err);
@@ -948,6 +1144,11 @@ router.get("/assignments/:assignmentId/submissions", verifyJWT, professorOnly, a
     }
 
     const userId = getUserId(req);
+    const cachedResponse = getCachedProfessorAssignmentSubmissions(userId, assignmentId);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
+
     const assignmentRes = await db.query(
       `
       SELECT
@@ -1009,11 +1210,14 @@ router.get("/assignments/:assignmentId/submissions", verifyJWT, professorOnly, a
       { submitted: 0, not_submitted: 0, graded: 0 },
     );
 
-    return res.json({
+    const responsePayload = {
       assignment,
       summary: { ...summary, total_students: submissionsRes.rows.length },
       submissions: submissionsRes.rows,
-    });
+    };
+
+    setCachedProfessorAssignmentSubmissions(userId, assignmentId, responsePayload);
+    return res.json(responsePayload);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: err.message });
@@ -1038,6 +1242,7 @@ router.patch("/submissions/:submissionId/review", verifyJWT, professorOnly, asyn
     }
 
     const userId = getUserId(req);
+    const assignmentId = await getAssignmentIdBySubmissionId(submissionId);
     const allowed = await db.query(
       `
       SELECT sub.submission_id
@@ -1067,6 +1272,8 @@ router.patch("/submissions/:submissionId/review", verifyJWT, professorOnly, asyn
       `,
       [normalizedStatus, grade == null || grade === "" ? null : Number(grade), feedback || null, submissionId],
     );
+    invalidateProfessorDashboardCache(userId);
+    invalidateProfessorAssignmentSubmissionsCache(userId, assignmentId);
     return res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);

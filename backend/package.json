@@ -1,6 +1,9 @@
 {
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate:professor-indexes": "node scripts/runSqlMigration.js migrations/018_professor_feature_indexes.sql",
+    "benchmark:professor": "node scripts/benchmarkProfessorEndpoints.js",
+    "explain:professor-dashboard": "node scripts/explainProfessorDashboard.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
