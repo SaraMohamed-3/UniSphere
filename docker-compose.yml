@@ -34,6 +34,20 @@ services:
     networks:
       - unisphere-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: sis_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - unisphere-network
+
   backend:
     build:
       context: ./backend
@@ -49,12 +63,16 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-12345}
       DB_NAME: ${DB_NAME:-sis_db}
       JWT_SECRET: ${JWT_SECRET:-my_super_secret_key}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.2}
       PORT: 5050
       NODE_ENV: development
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend:/app
