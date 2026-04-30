@@ -1,6 +1,21 @@
 const express = require("express");
 const cors = require("cors");
 
+// Suppress unhandled Redis errors globally
+process.on("unhandledRejection", (reason, promise) => {
+  if (
+    reason &&
+    reason.message &&
+    (reason.message.includes("ECONNREFUSED") ||
+      reason.message.includes("Redis") ||
+      reason.code === "ECONNREFUSED")
+  ) {
+    // Silently ignore Redis connection errors
+    return;
+  }
+  console.error("Unhandled Rejection:", reason);
+});
+
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const studentRoutes = require("./routes/studentRoutes");

@@ -2,10 +2,25 @@ const express = require("express");
 const router = express.Router();
 
 const db = require("../data/db");
+const cache = require("../data/cache");
 const { verifyJWT, studentOnly } = require("../middleware/auth");
 
 function getUserId(req) {
   return req.user?.userId ?? req.user?.user_id ?? req.user?.id;
+}
+
+async function withCache(key, loader, ttlSeconds = 300) {
+  const cached = await cache.getCache(key);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const value = await loader();
+  if (value !== undefined) {
+    await cache.setCache(key, value, ttlSeconds);
+  }
+
+  return value;
 }
 
 async function columnExists(tableName, columnName) {
@@ -38,16 +53,23 @@ async function getStudentContext(req) {
   const userId = getUserId(req);
   if (!userId) return null;
 
-  const r = await db.query(
-    `
-    SELECT s.student_id, s.department_id, d.name AS department_name
-    FROM students s
-    LEFT JOIN departments d ON d.department_id = s.department_id
-    WHERE s.user_id = $1
-    `,
-    [userId],
+  return await withCache(
+    `student:context:user:${userId}`,
+    async () => {
+      const r = await db.query(
+        `
+      SELECT s.student_id, s.department_id, d.name AS department_name
+      FROM students s
+      LEFT JOIN departments d ON d.department_id = s.department_id
+      WHERE s.user_id = $1
+      LIMIT 1
+      `,
+        [userId],
+      );
+      return r.rows[0] || null;
+    },
+    300,
   );
-  return r.rows[0] || null;
 }
 
 function semesterRank(semester) {
@@ -76,61 +98,73 @@ function percentToGradePoint(percent) {
 }
 
 async function fetchCourses(studentId) {
-  const r = await db.query(
-    `
-    SELECT
-      c.class_id,
-      co.course_id,
-      co.code AS course_code,
-      co.name AS course_name,
-      COALESCE(co.credits, 3) AS credits,
-      c.semester,
-      c.year,
-      c.day,
-      c.time_start,
-      c.time_end,
-      c.location,
-      u.email AS professor_email
-    FROM enrollments e
-    JOIN classes c ON c.class_id = e.class_id
-    JOIN courses co ON co.course_id = c.course_id
-    LEFT JOIN professors p ON p.professor_id = c.professor_id
-    LEFT JOIN users u ON u.user_id = p.user_id
-    WHERE e.student_id = $1
-    ORDER BY c.year DESC NULLS LAST, c.semester DESC, co.code ASC
-    `,
-    [studentId],
+  return await withCache(
+    `student:courses:${studentId}`,
+    async () => {
+      const r = await db.query(
+        `
+      SELECT
+        c.class_id,
+        co.course_id,
+        co.code AS course_code,
+        co.name AS course_name,
+        COALESCE(co.credits, 3) AS credits,
+        c.semester,
+        c.year,
+        c.day,
+        c.time_start,
+        c.time_end,
+        c.location,
+        u.email AS professor_email
+      FROM enrollments e
+      JOIN classes c ON c.class_id = e.class_id
+      JOIN courses co ON co.course_id = c.course_id
+      LEFT JOIN professors p ON p.professor_id = c.professor_id
+      LEFT JOIN users u ON u.user_id = p.user_id
+      WHERE e.student_id = $1
+      ORDER BY c.year DESC NULLS LAST, c.semester DESC, co.code ASC
+      `,
+        [studentId],
+      );
+      return r.rows;
+    },
+    300,
   );
-  return r.rows;
 }
 
 async function fetchGrades(studentId) {
-  const r = await db.query(
-    `
-    SELECT
-      e.enrollment_id,
-      c.class_id,
-      co.code AS course_code,
-      co.name AS course_name,
-      COALESCE(co.credits, 3) AS credits,
-      c.semester,
-      c.year,
-      COUNT(g.grade_id)::int AS graded_items,
-      COALESCE(
-        ROUND(AVG((g.score::numeric / NULLIF(g.max_score, 0)) * 100), 2),
-        0
-      ) AS avg_percent
-    FROM enrollments e
-    JOIN classes c ON c.class_id = e.class_id
-    JOIN courses co ON co.course_id = c.course_id
-    LEFT JOIN grades g ON g.enrollment_id = e.enrollment_id
-    WHERE e.student_id = $1
-    GROUP BY e.enrollment_id, c.class_id, co.code, co.name, co.credits, c.semester, c.year
-    ORDER BY c.year DESC NULLS LAST, c.semester DESC, co.code ASC
-    `,
-    [studentId],
+  return await withCache(
+    `student:grades:${studentId}`,
+    async () => {
+      const r = await db.query(
+        `
+      SELECT
+        e.enrollment_id,
+        c.class_id,
+        co.code AS course_code,
+        co.name AS course_name,
+        COALESCE(co.credits, 3) AS credits,
+        c.semester,
+        c.year,
+        COUNT(g.grade_id)::int AS graded_items,
+        COALESCE(
+          ROUND(AVG((g.score::numeric / NULLIF(g.max_score, 0)) * 100), 2),
+          0
+        ) AS avg_percent
+      FROM enrollments e
+      JOIN classes c ON c.class_id = e.class_id
+      JOIN courses co ON co.course_id = c.course_id
+      LEFT JOIN grades g ON g.enrollment_id = e.enrollment_id
+      WHERE e.student_id = $1
+      GROUP BY e.enrollment_id, c.class_id, co.code, co.name, co.credits, c.semester, c.year
+      ORDER BY c.year DESC NULLS LAST, c.semester DESC, co.code ASC
+      `,
+        [studentId],
+      );
+      return r.rows;
+    },
+    300,
   );
-  return r.rows;
 }
 
 function computeGpaSummary(gradeRows) {
@@ -157,7 +191,10 @@ function computeGpaSummary(gradeRows) {
   });
 
   const completed = enriched.filter((r) => Number(r.graded_items || 0) > 0);
-  const creditsAttempted = completed.reduce((a, r) => a + Number(r.credits || 0), 0);
+  const creditsAttempted = completed.reduce(
+    (a, r) => a + Number(r.credits || 0),
+    0,
+  );
   const qualityPoints = completed.reduce(
     (a, r) => a + Number(r.grade_points || 0) * Number(r.credits || 0),
     0,
@@ -174,9 +211,14 @@ function computeGpaSummary(gradeRows) {
   const latestYear = latest[0]?.year ?? null;
   const latestSemester = latest[0]?.semester ?? null;
   const latestTermRows = latest.filter(
-    (r) => r.year === latestYear && String(r.semester || "") === String(latestSemester || ""),
+    (r) =>
+      r.year === latestYear &&
+      String(r.semester || "") === String(latestSemester || ""),
   );
-  const latestTermCredits = latestTermRows.reduce((a, r) => a + Number(r.credits || 0), 0);
+  const latestTermCredits = latestTermRows.reduce(
+    (a, r) => a + Number(r.credits || 0),
+    0,
+  );
   const latestTermQuality = latestTermRows.reduce(
     (a, r) => a + Number(r.grade_points || 0) * Number(r.credits || 0),
     0,
@@ -185,15 +227,20 @@ function computeGpaSummary(gradeRows) {
     ? Number((latestTermQuality / latestTermCredits).toFixed(2))
     : 0;
 
-  const passedCourses = completed.filter((r) => r.result_status === "Pass").length;
-  const failedCourses = completed.filter((r) => r.result_status === "Fail").length;
+  const passedCourses = completed.filter(
+    (r) => r.result_status === "Pass",
+  ).length;
+  const failedCourses = completed.filter(
+    (r) => r.result_status === "Fail",
+  ).length;
 
   return {
     rows: enriched,
     summary: {
       cumulativeGpa,
       semesterGpa,
-      latestTerm: latestSemester && latestYear ? `${latestSemester} ${latestYear}` : null,
+      latestTerm:
+        latestSemester && latestYear ? `${latestSemester} ${latestYear}` : null,
       creditsAttempted,
       completedCourses: completed.length,
       passedCourses,
@@ -206,7 +253,8 @@ function computeGpaSummary(gradeRows) {
 router.get("/dashboard", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
 
     const [courses, gradesRaw, attendanceRaw] = await Promise.all([
       fetchCourses(ctx.student_id),
@@ -263,7 +311,10 @@ router.get("/dashboard", verifyJWT, studentOnly, async (req, res) => {
       ],
       schedule: courses.slice(0, 6).map((c) => ({
         course: `${c.course_code} - ${c.course_name}`,
-        time: c.time_start && c.time_end ? `${c.time_start} - ${c.time_end}` : "TBA",
+        time:
+          c.time_start && c.time_end
+            ? `${c.time_start} - ${c.time_end}`
+            : "TBA",
         location: c.location || "TBA",
       })),
       announcements: announcementsRes.rows.map((a) => ({
@@ -286,7 +337,8 @@ router.get("/dashboard", verifyJWT, studentOnly, async (req, res) => {
 router.get("/courses", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
     const rows = await fetchCourses(ctx.student_id);
     res.json(rows);
   } catch (err) {
@@ -299,7 +351,8 @@ router.get("/courses", verifyJWT, studentOnly, async (req, res) => {
 router.get("/grades", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
     const rows = await fetchGrades(ctx.student_id);
     res.json(computeGpaSummary(rows));
   } catch (err) {
@@ -312,7 +365,8 @@ router.get("/grades", verifyJWT, studentOnly, async (req, res) => {
 router.get("/exams", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
     const r = await db.query(
       `
       SELECT
@@ -347,7 +401,8 @@ router.get("/exams", verifyJWT, studentOnly, async (req, res) => {
 router.get("/attendance", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
     const r = await db.query(
       `
       SELECT
@@ -382,7 +437,10 @@ router.get("/attendance", verifyJWT, studentOnly, async (req, res) => {
     const avg = rows.length
       ? Number(
           (
-            rows.reduce((acc, row) => acc + Number(row.attendance_percent || 0), 0) / rows.length
+            rows.reduce(
+              (acc, row) => acc + Number(row.attendance_percent || 0),
+              0,
+            ) / rows.length
           ).toFixed(2),
         )
       : 0;
@@ -400,63 +458,70 @@ router.get("/attendance", verifyJWT, studentOnly, async (req, res) => {
 });
 
 // POST /api/student/transcript-requests
-router.post("/transcript-requests", verifyJWT, studentOnly, async (req, res) => {
-  try {
-    const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
-    const { transcriptType } = req.body || {};
-    const normalizedType = String(transcriptType || "official").toLowerCase();
-    const allowedTypes = ["official", "unofficial", "graduation"];
-    if (!allowedTypes.includes(normalizedType)) {
-      return res.status(400).json({ message: "Invalid transcript type" });
-    }
+router.post(
+  "/transcript-requests",
+  verifyJWT,
+  studentOnly,
+  async (req, res) => {
+    try {
+      const ctx = await getStudentContext(req);
+      if (!ctx)
+        return res.status(404).json({ message: "Student profile not found" });
+      const { transcriptType } = req.body || {};
+      const normalizedType = String(transcriptType || "official").toLowerCase();
+      const allowedTypes = ["official", "unofficial", "graduation"];
+      if (!allowedTypes.includes(normalizedType)) {
+        return res.status(400).json({ message: "Invalid transcript type" });
+      }
 
-    const pending = await db.query(
-      `SELECT request_id FROM transcript_requests WHERE student_id = $1 AND status = 'pending'`,
-      [ctx.student_id],
-    );
-    if (pending.rows.length > 0) {
-      return res.status(409).json({ message: "You already have a pending transcript request" });
-    }
+      const pending = await db.query(
+        `SELECT request_id FROM transcript_requests WHERE student_id = $1 AND status = 'pending'`,
+        [ctx.student_id],
+      );
+      if (pending.rows.length > 0) {
+        return res
+          .status(409)
+          .json({ message: "You already have a pending transcript request" });
+      }
 
-    const [hasTranscriptType, hasReadyForCollection] = await Promise.all([
-      columnExists("transcript_requests", "transcript_type"),
-      columnExists("transcript_requests", "ready_for_collection"),
-    ]);
+      const [hasTranscriptType, hasReadyForCollection] = await Promise.all([
+        columnExists("transcript_requests", "transcript_type"),
+        columnExists("transcript_requests", "ready_for_collection"),
+      ]);
 
-    let created;
-    if (hasTranscriptType && hasReadyForCollection) {
-      created = await db.query(
-        `
+      let created;
+      if (hasTranscriptType && hasReadyForCollection) {
+        created = await db.query(
+          `
         INSERT INTO transcript_requests (student_id, status, transcript_type, ready_for_collection)
         VALUES ($1, 'pending', $2, FALSE)
         RETURNING request_id
         `,
-        [ctx.student_id, normalizedType],
-      );
-    } else if (hasTranscriptType) {
-      created = await db.query(
-        `
+          [ctx.student_id, normalizedType],
+        );
+      } else if (hasTranscriptType) {
+        created = await db.query(
+          `
         INSERT INTO transcript_requests (student_id, status, transcript_type)
         VALUES ($1, 'pending', $2)
         RETURNING request_id
         `,
-        [ctx.student_id, normalizedType],
-      );
-    } else {
-      created = await db.query(
-        `
+          [ctx.student_id, normalizedType],
+        );
+      } else {
+        created = await db.query(
+          `
         INSERT INTO transcript_requests (student_id, status)
         VALUES ($1, 'pending')
         RETURNING request_id
         `,
-        [ctx.student_id],
-      );
-    }
+          [ctx.student_id],
+        );
+      }
 
-    const requestId = created.rows[0]?.request_id;
-    const r = await db.query(
-      `
+      const requestId = created.rows[0]?.request_id;
+      const r = await db.query(
+        `
       SELECT
         request_id,
         status,
@@ -466,20 +531,22 @@ router.post("/transcript-requests", verifyJWT, studentOnly, async (req, res) => 
       FROM transcript_requests
       WHERE request_id = $1
       `,
-      [requestId],
-    );
-    res.status(201).json(r.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
-  }
-});
+        [requestId],
+      );
+      res.status(201).json(r.rows[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
 
 // GET /api/student/transcript-requests
 router.get("/transcript-requests", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
     const [hasTranscriptType, hasReadyForCollection] = await Promise.all([
       columnExists("transcript_requests", "transcript_type"),
       columnExists("transcript_requests", "ready_for_collection"),
@@ -510,14 +577,20 @@ router.get("/transcript-requests", verifyJWT, studentOnly, async (req, res) => {
 router.get("/assignments", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
 
     const [assignmentsOk, submissionsOk] = await Promise.all([
       tableExists("assignments"),
       tableExists("assignment_submissions"),
     ]);
     if (!assignmentsOk || !submissionsOk) {
-      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
+      return res
+        .status(500)
+        .json({
+          message:
+            "Assignments schema is not available. Run migration 017_assignments.sql",
+        });
     }
 
     const r = await db.query(
@@ -564,31 +637,43 @@ router.get("/assignments", verifyJWT, studentOnly, async (req, res) => {
 });
 
 // POST /api/student/assignments/:assignmentId/submission
-router.post("/assignments/:assignmentId/submission", verifyJWT, studentOnly, async (req, res) => {
-  try {
-    const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+router.post(
+  "/assignments/:assignmentId/submission",
+  verifyJWT,
+  studentOnly,
+  async (req, res) => {
+    try {
+      const ctx = await getStudentContext(req);
+      if (!ctx)
+        return res.status(404).json({ message: "Student profile not found" });
 
-    const [assignmentsOk, submissionsOk] = await Promise.all([
-      tableExists("assignments"),
-      tableExists("assignment_submissions"),
-    ]);
-    if (!assignmentsOk || !submissionsOk) {
-      return res.status(500).json({ message: "Assignments schema is not available. Run migration 017_assignments.sql" });
-    }
+      const [assignmentsOk, submissionsOk] = await Promise.all([
+        tableExists("assignments"),
+        tableExists("assignment_submissions"),
+      ]);
+      if (!assignmentsOk || !submissionsOk) {
+        return res
+          .status(500)
+          .json({
+            message:
+              "Assignments schema is not available. Run migration 017_assignments.sql",
+          });
+      }
 
-    const assignmentId = parseInt(req.params.assignmentId, 10);
-    if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
-      return res.status(400).json({ message: "Invalid assignment ID" });
-    }
+      const assignmentId = parseInt(req.params.assignmentId, 10);
+      if (!Number.isInteger(assignmentId) || assignmentId <= 0) {
+        return res.status(400).json({ message: "Invalid assignment ID" });
+      }
 
-    const { submissionText, attachmentUrl } = req.body || {};
-    if (!submissionText && !attachmentUrl) {
-      return res.status(400).json({ message: "submissionText or attachmentUrl is required" });
-    }
+      const { submissionText, attachmentUrl } = req.body || {};
+      if (!submissionText && !attachmentUrl) {
+        return res
+          .status(400)
+          .json({ message: "submissionText or attachmentUrl is required" });
+      }
 
-    const assignmentRes = await db.query(
-      `
+      const assignmentRes = await db.query(
+        `
       SELECT a.assignment_id, a.class_id, a.due_at
       FROM assignments a
       JOIN enrollments e ON e.class_id = a.class_id
@@ -597,30 +682,34 @@ router.post("/assignments/:assignmentId/submission", verifyJWT, studentOnly, asy
         AND a.is_published = TRUE
       LIMIT 1
       `,
-      [assignmentId, ctx.student_id],
-    );
-    if (!assignmentRes.rows.length) {
-      return res.status(404).json({ message: "Assignment not found for this student" });
-    }
+        [assignmentId, ctx.student_id],
+      );
+      if (!assignmentRes.rows.length) {
+        return res
+          .status(404)
+          .json({ message: "Assignment not found for this student" });
+      }
 
-    const dueAt = assignmentRes.rows[0]?.due_at ? new Date(assignmentRes.rows[0].due_at) : null;
-    const now = new Date();
-    const isLate = dueAt && now > dueAt;
-    const status = isLate ? "late" : "submitted";
+      const dueAt = assignmentRes.rows[0]?.due_at
+        ? new Date(assignmentRes.rows[0].due_at)
+        : null;
+      const now = new Date();
+      const isLate = dueAt && now > dueAt;
+      const status = isLate ? "late" : "submitted";
 
-    const existing = await db.query(
-      `
+      const existing = await db.query(
+        `
       SELECT submission_id
       FROM assignment_submissions
       WHERE assignment_id = $1 AND student_id = $2
       `,
-      [assignmentId, ctx.student_id],
-    );
+        [assignmentId, ctx.student_id],
+      );
 
-    let saved;
-    if (existing.rows.length) {
-      saved = await db.query(
-        `
+      let saved;
+      if (existing.rows.length) {
+        saved = await db.query(
+          `
         UPDATE assignment_submissions
         SET
           submission_text = $1,
@@ -631,44 +720,46 @@ router.post("/assignments/:assignmentId/submission", verifyJWT, studentOnly, asy
         WHERE submission_id = $4
         RETURNING *
         `,
-        [
-          submissionText ? String(submissionText).trim() : null,
-          attachmentUrl ? String(attachmentUrl).trim() : null,
-          status,
-          existing.rows[0].submission_id,
-        ],
-      );
-    } else {
-      saved = await db.query(
-        `
+          [
+            submissionText ? String(submissionText).trim() : null,
+            attachmentUrl ? String(attachmentUrl).trim() : null,
+            status,
+            existing.rows[0].submission_id,
+          ],
+        );
+      } else {
+        saved = await db.query(
+          `
         INSERT INTO assignment_submissions (
           assignment_id, student_id, submission_text, attachment_url, submitted_at, status
         )
         VALUES ($1, $2, $3, $4, NOW(), $5)
         RETURNING *
         `,
-        [
-          assignmentId,
-          ctx.student_id,
-          submissionText ? String(submissionText).trim() : null,
-          attachmentUrl ? String(attachmentUrl).trim() : null,
-          status,
-        ],
-      );
-    }
+          [
+            assignmentId,
+            ctx.student_id,
+            submissionText ? String(submissionText).trim() : null,
+            attachmentUrl ? String(attachmentUrl).trim() : null,
+            status,
+          ],
+        );
+      }
 
-    return res.status(201).json(saved.rows[0]);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
-  }
-});
+      return res.status(201).json(saved.rows[0]);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: err.message });
+    }
+  },
+);
 
 // GET /api/student/announcements
 router.get("/announcements", verifyJWT, studentOnly, async (req, res) => {
   try {
     const ctx = await getStudentContext(req);
-    if (!ctx) return res.status(404).json({ message: "Student profile not found" });
+    if (!ctx)
+      return res.status(404).json({ message: "Student profile not found" });
 
     const r = await db.query(
       `
