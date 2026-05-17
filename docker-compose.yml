@@ -27,7 +27,7 @@ services:
       - ./backend/migrations/017_assignments.sql:/docker-entrypoint-initdb.d/14_assignments.sql
       - ./backend/migrations/018_professor_feature_indexes.sql:/docker-entrypoint-initdb.d/15_professor_feature_indexes.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
