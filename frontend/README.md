@@ -11,6 +11,13 @@ In the project directory, you can run:
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
+For local development, the frontend tries `http://localhost:5050/api` first and
+falls back to `http://localhost:5001/api`.
+
+For server deployments, the frontend prefers `REACT_APP_API_URL` when it points
+at the real server, otherwise it falls back to same-origin `/api` so a reverse
+proxy can handle the backend route without hardcoded localhost ports.
+
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 

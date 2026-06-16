@@ -43,10 +43,31 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
   : ["http://localhost:3000"];
 
+const isLocalDevOrigin = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin || "");
+
+const parsePositiveInt = (value, fallback) => {
+  const parsedValue = Number.parseInt(value, 10);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallback;
+};
+
+const createRateLimiter = ({ windowMs, max, message }) =>
+  rateLimit({
+    windowMs,
+    max,
+    message,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        (process.env.NODE_ENV !== "production" && isLocalDevOrigin(origin))
+      ) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -55,25 +76,27 @@ app.use(
   }),
 );
 
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // max 500 requests per IP
+const generalLimiter = createRateLimiter({
+  windowMs: parsePositiveInt(process.env.GENERAL_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
+  max: parsePositiveInt(process.env.GENERAL_RATE_LIMIT_MAX, 500),
   message: {
     message: "Too many requests, please try again later",
   },
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // max 10 login/auth attempts per IP
-  message: {
-    message: "Too many login attempts, please try again later",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const authRateLimitDisabled = String(process.env.AUTH_RATE_LIMIT_DISABLED || "").toLowerCase() === "true";
+const authLimiter = authRateLimitDisabled
+  ? (req, res, next) => next()
+  : createRateLimiter({
+      windowMs: parsePositiveInt(
+        process.env.AUTH_RATE_LIMIT_WINDOW_MS,
+        15 * 60 * 1000,
+      ),
+      max: parsePositiveInt(process.env.AUTH_RATE_LIMIT_MAX, 10),
+      message: {
+        message: "Too many login attempts, please try again later",
+      },
+    });
 
 app.use(generalLimiter);
 

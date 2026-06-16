@@ -2,7 +2,16 @@ const express = require("express");
 const router = express.Router();
 const { neon } = require("@neondatabase/serverless");
 
-const sql = neon(process.env.DATABASE_URL);
+let sql;
+function getSql() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  if (!sql) {
+    sql = neon(process.env.DATABASE_URL);
+  }
+  return sql;
+}
 
 router.post("/predict-risk", async (req, res) => {
   try {
@@ -15,7 +24,14 @@ router.post("/predict-risk", async (req, res) => {
     }
 
     // 1️⃣ Get enrollment
-    const enrollment = await sql`
+    let db;
+    try {
+      db = getSql();
+    } catch (dbError) {
+      return res.status(503).json({ error: dbError.message });
+    }
+
+    const enrollment = await db`
       SELECT
         e.enrollment_id,
         e.student_id,
@@ -38,7 +54,7 @@ router.post("/predict-risk", async (req, res) => {
     const enrollment_id = enrollment[0].enrollment_id;
 
     // 2️⃣ Get grades
-    const grades = await sql`
+    const grades = await db`
       SELECT
         COALESCE(AVG(score), 0) AS avg_score,
         COUNT(*)                AS assessments_done
@@ -47,7 +63,7 @@ router.post("/predict-risk", async (req, res) => {
     `;
 
     // 3️⃣ Get attendance — calculate rate for display, not sent to ML model
-    const attendance = await sql`
+    const attendance = await db`
       SELECT
         COUNT(*) FILTER (WHERE status = 'Present') AS attended,
         COUNT(*)                                   AS total
@@ -56,7 +72,7 @@ router.post("/predict-risk", async (req, res) => {
     `;
 
     // 4️⃣ Get student info
-    const student = await sql`
+    const student = await db`
       SELECT s.student_id, u.full_name
       FROM students s
       JOIN users u ON s.user_id = u.user_id

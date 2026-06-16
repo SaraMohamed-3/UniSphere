@@ -223,7 +223,7 @@ export default function MessagingPage() {
               }}
               title="New conversation"
               style={{
-                background: "#ea580c",
+                background: "var(--primary)",
                 color: "#fff",
                 border: "none",
                 borderRadius: 8,
@@ -281,9 +281,9 @@ export default function MessagingPage() {
                 style={{
                   padding: "12px 14px",
                   cursor: "pointer",
-                  background: isActive ? "#fff7ed" : "transparent",
+                  background: isActive ? "#eef4f1" : "transparent",
                   borderLeft: isActive
-                    ? "3px solid #ea580c"
+                    ? "3px solid var(--primary)"
                     : "3px solid transparent",
                   borderBottom: "1px solid #f3f4f6",
                 }}
@@ -303,7 +303,7 @@ export default function MessagingPage() {
                     {Number(c.unread_count) > 0 && (
                       <span
                         style={{
-                          background: "#ea580c",
+                        background: "var(--primary)",
                           color: "#fff",
                           borderRadius: 999,
                           fontSize: 11,
@@ -399,7 +399,7 @@ export default function MessagingPage() {
                     boxSizing: "border-box",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = "#ea580c")
+                    (e.currentTarget.style.borderColor = "var(--primary)")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.borderColor = "#e5e7eb")
@@ -501,7 +501,7 @@ export default function MessagingPage() {
                     <div
                       style={{
                         maxWidth: isMobile ? "88%" : "66%",
-                        background: isMe ? "#ea580c" : "#fff",
+                        background: isMe ? "var(--primary)" : "#fff",
                         color: isMe ? "#fff" : "#111827",
                         border: isMe ? "none" : "1px solid #e5e7eb",
                         borderRadius: isMe
@@ -586,7 +586,7 @@ export default function MessagingPage() {
                 onClick={handleSend}
                 disabled={sending || !newMessage.trim()}
                 style={{
-                  background: "#ea580c",
+                  background: "var(--primary)",
                   color: "#fff",
                   border: "none",
                   borderRadius: 12,
@@ -624,7 +624,7 @@ export default function MessagingPage() {
             <button
               onClick={() => setShowNewConvo(true)}
               style={{
-                background: "#ea580c",
+                background: "var(--primary)",
                 color: "#fff",
                 border: "none",
                 borderRadius: 10,

@@ -93,53 +93,38 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (err) return <div style={{ color: "crimson" }}>{err}</div>;
-  if (!data) return <div>Loading…</div>;
+  if (err) return <div className="error-message">{err}</div>;
+  if (!data) return <div className="profile-loading"><div className="profile-loading-card">Loading…</div></div>;
 
   return (
     <div>
-      <h1 style={{ fontSize: 26, fontWeight: 900, margin: "8px 0 4px" }}>
-        {data.header.title}
-      </h1>
-      <div style={{ color: "#6b7280", marginBottom: 18 }}>
-        {data.header.subtitle}
-      </div>
+      <section className="dashboard-hero">
+        <div>
+          <h1>{data.header.title}</h1>
+          <p>{data.header.subtitle}</p>
+        </div>
+      </section>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 18,
-        }}
-      >
+      <section className="stats-grid">
         {data.topStats.map((s) => (
-          <div
-            key={s.key}
-            style={{
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: 16,
-              padding: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900 }}>{s.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 900, marginTop: 10 }}>
+          <div key={s.key} className="stat-card">
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-value">
               {s.value}
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>
+            <div className="stat-label" style={{ marginTop: 8, fontSize: 12 }}>
               {s.badge}
             </div>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 14 }}
-      >
-        <div style={card()}>
-          <div style={{ fontWeight: 900, marginBottom: 14 }}>
+      <section className="dashboard-grid">
+        <div className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <h2 className="dashboard-panel-title">
             Students by Department
+            </h2>
           </div>
           {data.studentsByDepartment.map((d) => (
             <div key={d.name} style={{ marginBottom: 12 }}>
@@ -162,7 +147,7 @@ export default function AdminDashboardPage() {
                     height: 8,
                     width: "60%",
                     borderRadius: 999,
-                    background: "#2563eb",
+                    background: "var(--primary)",
                   }}
                 />
               </div>
@@ -170,74 +155,68 @@ export default function AdminDashboardPage() {
           ))}
         </div>
 
-        <div style={card()}>
-          <div style={{ fontWeight: 900, marginBottom: 14 }}>
+        <div className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <h2 className="dashboard-panel-title">
             Recent Activity
+            </h2>
           </div>
           {data.recentActivity.map((a, i) => (
             <div
               key={i}
-              style={{
-                background: "#f8fafc",
-                border: "1px solid #eef2f7",
-                borderRadius: 12,
-                padding: 12,
-                marginBottom: 10,
-              }}
+              className="list-card"
             >
-              <div style={{ fontWeight: 900, fontSize: 13 }}>{a.title}</div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+              <div className="list-card-title" style={{ fontSize: 13 }}>
+                {a.title}
+              </div>
+              <div className="list-card-subtitle" style={{ marginTop: 2 }}>
                 {a.time}
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* ✅ NEW: Global Announcements Manager */}
-      <div style={{ marginTop: 14, ...card() }}>
+      <section className="dashboard-panel" style={{ marginTop: 14 }}>
         <div
           style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
         >
           <div>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>
+            <div className="dashboard-panel-title" style={{ fontSize: 16 }}>
               Global Announcements
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+            <div className="list-card-subtitle" style={{ marginTop: 4 }}>
               Create announcements visible to all students & professors.
             </div>
           </div>
 
-          <button
-            onClick={fetchAnnouncements}
-            style={btnOutline()}
-            disabled={loadingA}
-          >
+          <button onClick={fetchAnnouncements} className="btn btn-soft" disabled={loadingA}>
             {loadingA ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
         {aErr ? (
-          <div style={{ color: "crimson", marginTop: 10 }}>{aErr}</div>
+          <div className="error-message" style={{ marginTop: 10 }}>{aErr}</div>
         ) : null}
 
         <form onSubmit={createAnnouncement} style={{ marginTop: 12 }}>
           <div style={{ display: "grid", gap: 10 }}>
             <input
+              className="form-input"
               value={newA.title}
               onChange={(e) =>
                 setNewA((p) => ({ ...p, title: e.target.value }))
               }
               placeholder="Announcement title"
-              style={input()}
             />
 
             <textarea
+              className="form-input"
               value={newA.body}
               onChange={(e) => setNewA((p) => ({ ...p, body: e.target.value }))}
               placeholder="Announcement message"
               rows={4}
-              style={{ ...input(), resize: "vertical" }}
+              style={{ resize: "vertical" }}
             />
 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -250,9 +229,9 @@ export default function AdminDashboardPage() {
                   }
                 />
                 <span style={{ fontSize: 13 }}>Publish immediately</span>
-              </label>
+                </label>
 
-              <button type="submit" style={btnPrimary()}>
+              <button type="submit" className="btn btn-primary">
                 Post Announcement
               </button>
             </div>
@@ -261,18 +240,16 @@ export default function AdminDashboardPage() {
 
         <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
           {(announcements || []).length === 0 ? (
-            <div style={{ color: "#6b7280", fontSize: 13 }}>
+            <div className="empty-state" style={{ padding: 0 }}>
               No announcements yet.
             </div>
           ) : (
             announcements.map((a) => (
               <div
                 key={a.announcement_id}
+                className="list-card"
                 style={{
-                  border: "1px solid #eef2f7",
-                  borderRadius: 12,
-                  padding: 12,
-                  background: a.is_published ? "#ffffff" : "#fff7ed",
+                  background: a.is_published ? "#fbfbfa" : "#f7f8f6",
                 }}
               >
                 <div
@@ -283,10 +260,8 @@ export default function AdminDashboardPage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 900 }}>{a.title}</div>
-                    <div
-                      style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}
-                    >
+                    <div className="list-card-title">{a.title}</div>
+                    <div className="list-card-subtitle" style={{ marginTop: 4 }}>
                       {a.created_at
                         ? new Date(a.created_at).toLocaleString()
                         : ""}
@@ -298,16 +273,10 @@ export default function AdminDashboardPage() {
                   <div
                     style={{ display: "flex", gap: 8, alignItems: "center" }}
                   >
-                    <button
-                      onClick={() => togglePublish(a)}
-                      style={btnOutline()}
-                    >
+                    <button onClick={() => togglePublish(a)} className="btn btn-soft">
                       {a.is_published ? "Unpublish" : "Publish"}
                     </button>
-                    <button
-                      onClick={() => deleteAnnouncement(a)}
-                      style={btnDanger()}
-                    >
+                    <button onClick={() => deleteAnnouncement(a)} className="btn btn-danger">
                       Delete
                     </button>
                   </div>
@@ -317,7 +286,7 @@ export default function AdminDashboardPage() {
                   style={{
                     marginTop: 10,
                     fontSize: 13,
-                    color: "#111827",
+                    color: "var(--text)",
                     whiteSpace: "pre-wrap",
                   }}
                 >
@@ -327,63 +296,7 @@ export default function AdminDashboardPage() {
             ))
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
-}
-
-function card() {
-  return {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 16,
-    padding: 16,
-    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)",
-  };
-}
-
-function input() {
-  return {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: "10px 12px",
-    outline: "none",
-    fontSize: 13,
-  };
-}
-
-function btnPrimary() {
-  return {
-    border: 0,
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontWeight: 900,
-    cursor: "pointer",
-    color: "#fff",
-    background: "#2563eb",
-  };
-}
-
-function btnOutline() {
-  return {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: "8px 10px",
-    fontWeight: 900,
-    cursor: "pointer",
-    background: "#fff",
-  };
-}
-
-function btnDanger() {
-  return {
-    border: 0,
-    borderRadius: 12,
-    padding: "8px 10px",
-    fontWeight: 900,
-    cursor: "pointer",
-    color: "#fff",
-    background: "#dc2626",
-  };
 }

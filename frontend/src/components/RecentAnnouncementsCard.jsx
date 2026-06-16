@@ -28,16 +28,18 @@ export default function RecentAnnouncementsCard({
   }, [authHeaders, limit]);
 
   return (
-    <div style={card()}>
-      <div style={headerRow()}>
+    <div className="dashboard-panel">
+      <div className="dashboard-panel-header">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔔</span>
-          <div style={{ fontWeight: 900, fontSize: 16 }}>{title}</div>
+          <div className="dashboard-panel-title" style={{ fontSize: 16 }}>
+            {title}
+          </div>
         </div>
 
         <button
           onClick={() => nav(viewAllPath)}
-          style={viewAllBtn()}
+          className="btn btn-soft"
           type="button"
         >
           View All
@@ -45,17 +47,19 @@ export default function RecentAnnouncementsCard({
       </div>
 
       {err ? (
-        <div style={{ color: "crimson", marginTop: 10 }}>{err}</div>
+        <div className="error-message" style={{ marginTop: 10 }}>
+          {err}
+        </div>
       ) : null}
 
       <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
         {items.length === 0 ? (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
+          <div className="empty-state" style={{ padding: 0 }}>
             No announcements yet.
           </div>
         ) : (
           items.map((a) => (
-            <div key={a.announcement_id} style={itemCard()}>
+            <div key={a.announcement_id} className="list-card">
               <div
                 style={{
                   display: "flex",
@@ -63,11 +67,11 @@ export default function RecentAnnouncementsCard({
                   gap: 10,
                 }}
               >
-                <div style={{ fontWeight: 900 }}>{a.title}</div>
+                <div className="list-card-title">{a.title}</div>
                 <span style={pill()}>Notice</span>
               </div>
 
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>
+              <div className="list-card-subtitle" style={{ marginTop: 6 }}>
                 {a.created_at ? timeAgo(a.created_at) : ""}
               </div>
             </div>
@@ -76,45 +80,6 @@ export default function RecentAnnouncementsCard({
       </div>
     </div>
   );
-}
-
-function card() {
-  return {
-    background: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    border: "1px solid #eef2f7",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-  };
-}
-
-function headerRow() {
-  return {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  };
-}
-
-function viewAllBtn() {
-  return {
-    border: 0,
-    background: "transparent",
-    color: "#2563eb",
-    fontWeight: 900,
-    cursor: "pointer",
-    padding: 0,
-  };
-}
-
-function itemCard() {
-  return {
-    border: "1px solid #eef2f7",
-    borderRadius: 14,
-    padding: 14,
-    background: "#fbfbfc",
-  };
 }
 
 function pill() {

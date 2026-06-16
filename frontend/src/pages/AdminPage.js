@@ -98,25 +98,16 @@ export default function AdminPage() {
 
   //  Layout provides the sidebar.
   return (
-    <div style={{ fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: "28px", fontWeight: "700", marginBottom: "10px" }}>
-        Manage Users
-      </h1>
-      <p style={{ marginBottom: "30px", color: "#666" }}>
-        Admin View: create, edit, activate or deactivate users
-      </p>
+    <div>
+      <section className="dashboard-hero" style={{ marginBottom: 24 }}>
+        <h1>Manage Users</h1>
+        <p>Admin view: create, edit, activate, or deactivate users.</p>
+      </section>
 
-      {/* CREATE USER FORM */}
-      <div
-        style={{
-          backgroundColor: "#fff",
-          padding: "20px",
-          borderRadius: "12px",
-          marginBottom: "40px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h2 style={{ marginBottom: "15px" }}>Create New User</h2>
+      <section className="dashboard-panel" style={{ marginBottom: 24 }}>
+        <div className="dashboard-panel-header">
+          <h2 className="dashboard-panel-title">Create New User</h2>
+        </div>
         <form
           onSubmit={handleCreateUser}
           style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}
@@ -128,12 +119,8 @@ export default function AdminPage() {
             value={formData.email}
             onChange={handleInputChange}
             required
-            style={{
-              flex: "1 1 200px",
-              padding: "8px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-            }}
+            className="form-input"
+            style={{ flex: "1 1 200px" }}
           />
 
           <input
@@ -143,24 +130,16 @@ export default function AdminPage() {
             value={formData.password}
             onChange={handleInputChange}
             required
-            style={{
-              flex: "1 1 150px",
-              padding: "8px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-            }}
+            className="form-input"
+            style={{ flex: "1 1 150px" }}
           />
 
           <select
             name="role"
             value={formData.role}
             onChange={handleInputChange}
-            style={{
-              flex: "1 1 120px",
-              padding: "8px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-            }}
+            className="form-input"
+            style={{ flex: "1 1 120px" }}
           >
             <option value="student">Student</option>
             <option value="professor">Professor</option>
@@ -173,41 +152,20 @@ export default function AdminPage() {
             value={formData.department_id}
             onChange={handleInputChange}
             required
-            style={{
-              flex: "1 1 100px",
-              padding: "8px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-            }}
+            className="form-input"
+            style={{ flex: "1 1 100px" }}
           />
 
-          <button
-            type="submit"
-            style={{
-              padding: "10px 16px",
-              backgroundColor: "#ff7300",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-          >
+          <button type="submit" className="btn btn-primary">
             Create
           </button>
         </form>
-      </div>
+      </section>
 
-      {/* USERS TABLE */}
-      <div
-        style={{
-          backgroundColor: "#fff",
-          padding: "20px",
-          borderRadius: "12px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h2 style={{ marginBottom: "20px" }}>All Users</h2>
+      <section className="dashboard-panel">
+        <div className="dashboard-panel-header">
+          <h2 className="dashboard-panel-title">All Users</h2>
+        </div>
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -241,24 +199,16 @@ export default function AdminPage() {
                         value={editFormData.email}
                         onChange={handleEditInputChange}
                         placeholder="Email"
-                        style={{
-                          padding: "6px",
-                          borderRadius: "6px",
-                          border: "1px solid #ccc",
-                          width: "150px",
-                        }}
+                        className="form-input"
+                        style={{ width: "150px" }}
                       />
 
                       <select
                         name="role"
                         value={editFormData.role}
                         onChange={handleEditInputChange}
-                        style={{
-                          padding: "6px",
-                          borderRadius: "6px",
-                          border: "1px solid #ccc",
-                          width: "110px",
-                        }}
+                        className="form-input"
+                        style={{ width: "110px" }}
                       >
                         <option value="student">Student</option>
                         <option value="professor">Professor</option>
@@ -270,41 +220,18 @@ export default function AdminPage() {
                         value={editFormData.department_id}
                         onChange={handleEditInputChange}
                         placeholder="Dept ID"
-                        style={{
-                          padding: "6px",
-                          borderRadius: "6px",
-                          border: "1px solid #ccc",
-                          width: "90px",
-                        }}
+                        className="form-input"
+                        style={{ width: "90px" }}
                       />
 
-                      <button
-                        type="submit"
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "#28a745",
-                          color: "#fff",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
-                      >
+                      <button type="submit" className="btn btn-primary">
                         Save
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setEditUserId(null)}
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "#dc3545",
-                          color: "#fff",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
+                        className="btn btn-danger"
                       >
                         Cancel
                       </button>
@@ -313,31 +240,15 @@ export default function AdminPage() {
                     <>
                       <button
                         onClick={() => startEdit(u)}
-                        style={{
-                          marginRight: "6px",
-                          padding: "6px 12px",
-                          backgroundColor: "#007bff",
-                          color: "#fff",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
+                        className="btn btn-soft"
+                        style={{ marginRight: "6px" }}
                       >
                         Edit
                       </button>
 
                       <button
                         onClick={() => toggleActive(u.user_id)}
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: u.is_active ? "#ffc107" : "#28a745",
-                          color: "#fff",
-                          borderRadius: "6px",
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
+                        className={u.is_active ? "btn btn-danger" : "btn btn-primary"}
                       >
                         {u.is_active ? "Deactivate" : "Activate"}
                       </button>
@@ -348,7 +259,7 @@ export default function AdminPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     </div>
   );
 }

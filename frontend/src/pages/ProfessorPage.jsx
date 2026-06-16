@@ -4,22 +4,6 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import RecentAnnouncementsCard from "../components/RecentAnnouncementsCard";
 
-function Card({ children }) {
-  return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: 14,
-        padding: 16,
-        boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-        border: "1px solid #eef2f7",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function ProfessorPage() {
   const nav = useNavigate();
   const [data, setData] = useState({
@@ -56,82 +40,53 @@ export default function ProfessorPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(90deg,#0f766e,#14b8a6)",
-          padding: "20px 22px",
-          color: "#fff",
-        }}
-      >
+      <section className="dashboard-hero">
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
           }}
         >
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900 }}>
-              {data.header.title}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.9 }}>
-              {data.header.subtitle}
-            </div>
+            <h1>{data.header.title}</h1>
+            <p>{data.header.subtitle}</p>
           </div>
           <div
             style={{
-              background: "rgba(255,255,255,0.15)",
+              background: "rgba(255,255,255,0.14)",
               padding: "8px 12px",
-              borderRadius: 12,
+              borderRadius: 999,
               fontSize: 12,
+              fontWeight: 800,
             }}
           >
             {data.header.department}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div
-        style={{
-          maxWidth: 1100,
-          margin: "0 auto",
-          padding: 18,
-          display: "grid",
-          gap: 14,
-        }}
-      >
-        {/* Stats Row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4,1fr)",
-            gap: 14,
-          }}
-        >
+      <div style={{ display: "grid", gap: 14 }}>
+        <section className="stats-grid">
           {(data.stats || []).map((s) => (
-            <Card key={s.label}>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{s.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, marginTop: 6 }}>
+            <div className="stat-card" key={s.label}>
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-value" style={{ fontSize: 22 }}>
                 {s.value}
               </div>
-            </Card>
+            </div>
           ))}
-        </div>
+        </section>
 
-        {/* Quick Actions */}
-        <Card>
-          <div style={{ fontWeight: 900, marginBottom: 12 }}>Quick Actions</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: 12,
-            }}
-          >
+        <section className="quick-actions">
+          <h2>Quick Actions</h2>
+          <div className="quick-action-grid">
             {(data.quickActions || []).map((a, idx) => (
               <button
                 key={a.key || idx}
+                type="button"
                 onClick={() => {
                   if (a.key === "attendance") nav("/professor/attendance");
                   if (a.key === "grades") nav("/professor/grades");
@@ -139,86 +94,65 @@ export default function ProfessorPage() {
                   if (a.key === "announce") nav("/professor/announcements");
                   if (a.key === "students") nav("/professor/classes");
                 }}
-                style={{
-                  border: 0,
-                  borderRadius: 12,
-                  padding: "12px 10px",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  color: "#fff",
-                  background:
-                    idx === 0
-                      ? "#0ea5e9"
-                      : idx === 1
-                        ? "#22c55e"
-                        : idx === 2
-                          ? "#a855f7"
-                          : "#f59e0b",
-                }}
+                className={
+                  idx === 0
+                    ? "action-button primary"
+                    : idx === 1
+                      ? "action-button secondary"
+                      : idx === 2
+                        ? "action-button accent"
+                        : "action-button danger"
+                }
               >
                 {a.label}
               </button>
             ))}
           </div>
-        </Card>
+        </section>
 
-        {/* Today + Recent Announcements (like your screenshot) */}
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
-        >
-          <Card>
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>
-              Today's Classes
+        <section className="dashboard-grid">
+          <div className="dashboard-panel">
+            <div className="dashboard-panel-header">
+              <h2 className="dashboard-panel-title">Today's Classes</h2>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {(!data.todaySchedule || data.todaySchedule.length === 0) && (
-                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                <div className="empty-state" style={{ padding: 0 }}>
                   No classes scheduled for today.
                 </div>
               )}
               {(data.todaySchedule || []).map((c, idx) => (
                 <div
                   key={`${c.course}-${idx}`}
-                  style={{
-                    border: "1px solid #eef2f7",
-                    borderRadius: 12,
-                    padding: 12,
-                  }}
+                  className="list-card"
                 >
-                  <div style={{ fontWeight: 900 }}>{c.course}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                  <div className="list-card-title">{c.course}</div>
+                  <div className="list-card-subtitle">
                     {c.time} • {c.location} • {c.students ?? "-"} students
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
           <RecentAnnouncementsCard viewAllPath="/professor/announcements" />
-        </div>
+        </section>
 
-        {/* Submissions + Performance */}
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
-        >
-          <Card>
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>
-              Recent Submissions
+        <section className="dashboard-grid">
+          <div className="dashboard-panel">
+            <div className="dashboard-panel-header">
+              <h2 className="dashboard-panel-title">Recent Submissions</h2>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {(!data.submissions || data.submissions.length === 0) && (
-                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                <div className="empty-state" style={{ padding: 0 }}>
                   No recent submissions yet.
                 </div>
               )}
               {(data.submissions || []).map((s, idx) => (
                 <div
                   key={`${s.title}-${idx}`}
-                  style={{
-                    border: "1px solid #eef2f7",
-                    borderRadius: 12,
-                    padding: 12,
-                  }}
+                  className="list-card"
                 >
                   <div
                     style={{
@@ -227,26 +161,28 @@ export default function ProfessorPage() {
                       gap: 10,
                     }}
                   >
-                    <div style={{ fontWeight: 900 }}>{s.title}</div>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>
+                    <div className="list-card-title" style={{ margin: 0 }}>
+                      {s.title}
+                    </div>
+                    <span className="list-card-subtitle" style={{ margin: 0 }}>
                       {fmtDateTime(s.when)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                  <div className="list-card-subtitle" style={{ marginTop: 4 }}>
                     {s.meta}
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
-          <Card>
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>
-              Course Performance
+          <div className="dashboard-panel">
+            <div className="dashboard-panel-header">
+              <h2 className="dashboard-panel-title">Course Performance</h2>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
               {(!data.coursePerformance || data.coursePerformance.length === 0) && (
-                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                <div className="empty-state" style={{ padding: 0 }}>
                   No performance data yet.
                 </div>
               )}
@@ -284,15 +220,16 @@ export default function ProfessorPage() {
                 </div>
               ))}
             </div>
-          </Card>
-        </div>
+          </div>
+        </section>
 
-        {/* Pending Tasks */}
-        <Card>
-          <div style={{ fontWeight: 900, marginBottom: 12 }}>Pending Tasks</div>
+        <section className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <h2 className="dashboard-panel-title">Pending Tasks</h2>
+          </div>
           <div style={{ display: "grid", gap: 10 }}>
             {(!data.pendingTasks || data.pendingTasks.length === 0) && (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
+              <div className="empty-state" style={{ padding: 0 }}>
                 No pending tasks.
               </div>
             )}
@@ -300,12 +237,8 @@ export default function ProfessorPage() {
               <div
                 key={`${t.title}-${idx}`}
                 onClick={() => t.route && nav(t.route)}
-                style={{
-                  border: "1px solid #eef2f7",
-                  borderRadius: 12,
-                  padding: 12,
-                  cursor: t.route ? "pointer" : "default",
-                }}
+                className="list-card"
+                style={{ cursor: t.route ? "pointer" : "default" }}
               >
                 <div
                   style={{ display: "flex", justifyContent: "space-between" }}
@@ -325,7 +258,7 @@ export default function ProfessorPage() {
               </div>
             ))}
           </div>
-        </Card>
+        </section>
       </div>
     </div>
   );

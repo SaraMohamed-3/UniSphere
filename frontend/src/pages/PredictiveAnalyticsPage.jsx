@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../services/api";
 
 /* ─── Palette ───────────────────────────────────────────────────────────── */
 const C = {
@@ -191,8 +191,8 @@ export default function PredictiveAnalyticsPage() {
     setResult(null);
     setMetrics(null);
     try {
-      const { data } = await axios.post(
-        "http://localhost:5050/api/analytics/predict-risk",
+      const { data } = await api.post(
+        "/analytics/predict-risk",
         { student_id: form.student_id, course_code: form.course_code },
       );
       setResult(data);

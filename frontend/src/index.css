@@ -164,15 +164,15 @@ a {
 }
 
 .nav-item.admin.active {
-  background: var(--admin);
+  background: var(--primary);
   color: #fff;
-  box-shadow: 0 12px 24px rgba(107, 79, 42, 0.18);
+  box-shadow: 0 12px 24px rgba(47, 93, 80, 0.18);
 }
 
 .nav-item.professor.active {
-  background: var(--professor);
+  background: var(--primary);
   color: #fff;
-  box-shadow: 0 12px 24px rgba(75, 85, 99, 0.18);
+  box-shadow: 0 12px 24px rgba(47, 93, 80, 0.18);
 }
 
 .nav-label {
